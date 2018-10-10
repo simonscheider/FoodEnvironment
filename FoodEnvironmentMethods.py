@@ -23,6 +23,7 @@ import fiona
 import geopandas
 from geopandas.tools import sjoin
 import pandas as pd
+import numpy as np
 
 from datetime import  date, datetime
 
@@ -78,14 +79,19 @@ def getisoline(startpoint, durationseconds, mode="car", starttime="2013-07-04T17
             # If response code is not ok (200), print the resulting http error code with description
             myResponse.raise_for_status()
 
-
-def getmatrix(startpoint, outlets, endpoint, mode="car"):
-    ruri = "https://matrix.route.api.here.com/routing/7.2/calculatematrix.json?app_id="+myappid+"&app_code="+myappcode+"&summaryAttributes=traveltime&mode=shortest;"+mode+";traffic:disabled&start0="+str(startpoint.y)+","+str(startpoint.x)
+def get1TravelMatrix(startpoint, outlets, mode="car", inverse=False):
+    if inverse:  #computes traveltimes to startpoint starting from outlets instead
+        od = 'destination'
+        outl = 'start'
+    else:
+        od = 'start'
+        outl = 'destination'
+    ruri = "https://matrix.route.api.here.com/routing/7.2/calculatematrix.json?app_id="+myappid+"&app_code="+myappcode+"&summaryAttributes=traveltime&mode=shortest;"+mode+";traffic:disabled&"+od+"0="+str(startpoint.y)+","+str(startpoint.x)
     print "getting routing matrix"
     for count,g in enumerate(outlets):
         g = transform(reproject, g)
-        ruri = ruri+"&destination"+str(count)+"="+str(g.y)+","+str(g.x)
-        if count == 20:
+        ruri = ruri+"&"+outl+str(count)+"="+str(g.y)+","+str(g.x)
+        if count == 9:
             break
     print ruri
     myResponse = requests.get(ruri)
@@ -95,10 +101,21 @@ def getmatrix(startpoint, outlets, endpoint, mode="car"):
         # json.loads takes in only binary or string variables so using content to fetch binary content
         # Loads (Load String) takes a Json file and converts into python data structure (dict or list, depending on JSON)
         jData = json.loads(myResponse.content)
-        print jData
+        #print jData
+        listofmatrixcells = jData['response']['matrixEntry']
+        traveltimes = np.array([[e['summary']['travelTime']] for e in listofmatrixcells] )
+        return traveltimes #This is a vector of traveltimes in seconds
+
     else:
             # If response code is not ok (200), print the resulting http error code with description
             myResponse.raise_for_status()
+
+def getAffordedTrips(ids, vOrigin, vDestination, mineventduration, timemax):
+    vsum = (np.add(np.add(vOrigin, vDestination),mineventduration))
+    #print vsum
+    trips =   [id for ix,id in enumerate(ids) if ix <10 and vsum[ix]<timemax]
+    print str(trips) + " trips afforded timewise!"
+    return trips
 
 
 def loadOutlets(outletdata= r"C:\Temp\Locatus\outlets.shp", colx = 1, coly = 2):
@@ -190,12 +207,20 @@ def main():
     #isoline = getisoline(Point(52.088816,5.095833), 600)
     startpoint = Point(5.095833, 52.088816)
     endpoint = Point(5.178099,52.085665)
-    starttime = "2013-07-04T17:00:00"
-    endtime =   "2013-07-04T18:00:00"
-    prism = getAccessibility(starttime, startpoint, endtime, endpoint)
+    starttime = datetime.strptime("2013-07-04T17:00:00",'%Y-%m-%dT%H:%M:%S')
+    endtime =   datetime.strptime("2013-07-04T18:00:00",'%Y-%m-%dT%H:%M:%S')
+
+    mineventduration = 300
+    totalduration =  (starttime - endtime).seconds
+    print "totalduration :" +str(totalduration)
+
+    prism = getAccessibility(starttime.isoformat(), startpoint, endtime.isoformat(), endpoint)
     candidates, candidateids = getAccessibleOutlets(prism,'selectedoutlets.shp')
-    print str(len(candidates))+" outlets selected!"
-    getmatrix(startpoint, candidates, endpoint)
+    print str(len(candidates))+" outlets pre-selected!"
+    v1 = get1TravelMatrix(startpoint, candidates)
+    v2 = get1TravelMatrix(endpoint, candidates, inverse=True)
+    trips = getAffordedTrips(candidateids,v1,v2, mineventduration, totalduration)
+
 
 
 
