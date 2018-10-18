@@ -20,6 +20,7 @@ import json
 import shapely
 from shapely import geometry
 from shapely.geometry import shape, Point, mapping, Polygon
+from shapely.wkt import loads
 import fiona
 import geopandas
 from geopandas.tools import sjoin
@@ -36,36 +37,47 @@ from xlrd import open_workbook
 import os
 
 
+
+"""Functions for computing space-time outlet accessibility within a prism defined by a flexible event"""
+
 project = lambda x, y: pyproj.transform(pyproj.Proj(init='EPSG:4326'), pyproj.Proj(init='EPSG:28992'), x, y)
 reproject =  lambda x, y: pyproj.transform(pyproj.Proj(init='EPSG:28992'), pyproj.Proj(init='EPSG:4326'), x, y)
 
-"""Function for constructing fixed and flexible (food) events from a collection of trips"""
-def constructEvents():
-    pass
 
-
-"""Main Function for computing space-time prism based outlet accessibility for a modifiable event"""
-def getAffordances(eventid, startpoint, starttime, endpoint, endtime, mineventduration, sidx,ids, outlets):
+"""Main Function for computing space-time prism based outlet accessibility for a flexible event"""
+def getAffordances(user,eventid, startpoint, starttime, mode1, endpoint, endtime, mode2, mineventduration, sidx,ids, outlets):
     print 'Finding afforded outlets for event ' +str(eventid)
     totalduration =  (endtime - starttime).total_seconds()
     print "totalduration :" +str(totalduration)
-
-    prism = getAccessibility(starttime.isoformat(),startpoint, endtime.isoformat(), endpoint, totalduration, mineventduration, save=os.path.join(r"C:\Users\schei008\Dropbox\Schriften\Exchange\GOF\results",str(eventid)+"prism.shp"))
-    candidates, candidateids = getAccessibleOutlets(prism, sidx,ids, outlets, save=os.path.join(r"C:\Users\schei008\Dropbox\Schriften\Exchange\GOF\results",str(eventid)+"preso.shp"))
+    newpath =os.path.join(results,user)
+    if not os.path.exists(newpath):
+        os.makedirs(newpath)
+    prism = getPrism(starttime.isoformat(),startpoint, endtime.isoformat(), endpoint, totalduration, mineventduration, mode1=convertMode(mode1), mode2=convertMode(mode2), save=os.path.join(newpath,str(eventid)+"prism.shp"))
+    if prism.is_empty:
+        print 'prism empty!!! continue without'
+        return
+    candidates, candidateids = getPrismOutlets(prism, sidx,ids, outlets, save=os.path.join(newpath,str(eventid)+"preso.shp"))
     print str(len(candidates))+" outlets pre-selected!"
-    v1 = get1TravelMatrix(startpoint, candidates)
-    v2 = get1TravelMatrix(endpoint, candidates, inverse=True)
+    v1 = get1TravelMatrix(startpoint, starttime.isoformat(), candidates, mode=convertMode(mode1))
+    v2 = get1TravelMatrix(endpoint, endtime.isoformat(), candidates, mode=convertMode(mode2), inverse=True)
     trips = getAffordedTrips(candidateids, candidates,v1,v2, mineventduration, totalduration)
-    saveOutlets(trips,save=os.path.join(r"C:\Users\schei008\Dropbox\Schriften\Exchange\GOF\results",str(eventid)+"afo.shp"))
+    saveOutlets(trips,save=os.path.join(newpath,str(eventid)+"afo.shp"))
+
+def convertMode(mode):
+    if mode == "Foot" or mode == "Bike" or 'unknown':
+        return 'pedestrian'
+    elif mode == 'Car' or mode=='Train':
+        return'car'
 
 
-def getAccessibility(starttime,startpoint, endtime, endpoint, timewindow, mineventduration=300, mode="car", save=r"C:\Users\schei008\Dropbox\Schriften\Exchange\GOF\results\prism.shp"):
+def getPrism(starttime,startpoint, endtime, endpoint, timewindow, mineventduration=300, mode1="car", mode2="car", save=r"C:\Users\schei008\Dropbox\Schriften\Exchange\GOF\results\prism.shp"):
     print "Start getting accessibility prism"
     #starttime=starttime+datetime.timedelta()
     availabletime = timewindow-mineventduration-300 #5 minutes minimum to get to the destination
     print "maxtraveltime: " +str(availabletime)
-    polystart = transform(project, getisoline(startpoint,availabletime, mode= mode, starttime=starttime))
-    polyend = transform(project, getisoline(endpoint, availabletime, mode=mode, starttime=endtime)) #De Uithof
+    print "for "+ mode1 + " and for " +mode2
+    polystart = transform(project, getisoline(startpoint,availabletime, mode= mode1, starttime=starttime))
+    polyend = transform(project, getisoline(endpoint, availabletime, mode=mode2, starttime=endtime)) #De Uithof
     inters = polystart.intersection(polyend)
     schema = {
         'geometry': 'Polygon',
@@ -105,14 +117,41 @@ def getisoline(startpoint, durationseconds, mode="car", starttime="2013-07-04T17
             # If response code is not ok (200), print the resulting http error code with description
             myResponse.raise_for_status()
 
-def get1TravelMatrix(startpoint, outlets, mode="car", inverse=False):
+"""Function for getting outlet candidates within a space time prism (an spatial intersection of traveltime isolines)"""
+def getPrismOutlets(prism, sidx,ids, outlets, save=r"C:\Users\schei008\Dropbox\Schriften\Exchange\GOF\results\presoutlets.shp"):
+    print "start selecting outlets within prism"      # Define a polygon feature geometry with one attribute
+
+    selection = sidx.intersection(prism.bounds)
+    selection = [i for i in selection if outlets[int(i)].within(prism)]
+    candidates  = [outlets[int(i)] for i in selection]
+    candidateids  = [ids[int(i)] for i in selection]
+    #print candidates
+    #print candidateids
+
+    schema = {
+        'geometry': 'Point',
+        'properties': {'id': 'int'},
+    }
+    # Write a new Shapefile
+    with fiona.open(save, 'w', 'ESRI Shapefile', schema) as c:
+        ## If there are multiple geometries, put the "for" loop here
+        for id, g in enumerate(candidates):
+            c.write({
+                'geometry': mapping(g),
+                'properties': {'id': candidateids[id]},
+                })
+    return candidates, candidateids
+
+
+"""Computes a complete time vector for traveling from an origin to all outlet  candidates"""
+def get1TravelMatrix(startpoint, starttime, outlets, mode="car", inverse=False):
     if inverse:  #computes traveltimes to startpoint starting from outlets instead
         od = 'destination'
         outl = 'start'
     else:
         od = 'start'
         outl = 'destination'
-    ruri0 = "https://matrix.route.api.here.com/routing/7.2/calculatematrix.json?app_id="+myappid+"&app_code="+myappcode+"&summaryAttributes=traveltime&mode=shortest;"+mode+";traffic:disabled&"+od+"0="+str(startpoint.y)+","+str(startpoint.x)
+    ruri0 = "https://matrix.route.api.here.com/routing/7.2/calculatematrix.json?app_id="+myappid+"&app_code="+myappcode+"&summaryAttributes=traveltime&mode=shortest;"+mode+";traffic:disabled&"+od+"0="+str(startpoint.y)+","+str(startpoint.x)+"&departure="+starttime
     print "getting routing matrix"
     traveltimes = np.array([])
     c =0
@@ -133,6 +172,7 @@ def get1TravelMatrix(startpoint, outlets, mode="car", inverse=False):
     if r.any():
         traveltimes = np.append(traveltimes,r)
     print str(traveltimes.size)+" outlet distances computed!"
+    print str(np.count_nonzero(traveltimes == 999999999))+" were API failures!"
     return traveltimes
 
 def fireTTrequest(ruri):
@@ -155,6 +195,7 @@ def fireTTrequest(ruri):
             # If response code is not ok (200), print the resulting http error code with description
             myResponse.raise_for_status()
 
+"""Selects all afforded trips from an origin via some candidate outlet to a destination taking into account eventtimes"""
 def getAffordedTrips(ids, outlets, vOrigin, vDestination, mineventduration, timemax):
     vsum = (np.add(np.add(vOrigin, vDestination),mineventduration))
     #print vsum
@@ -187,6 +228,7 @@ def loadOutlets(outletdata= r"C:\Temp\Locatus\outlets.shp", colx = 1, coly = 2):
     workbook = r"C:\Temp\Locatus\Levensmiddel_Horeca_311217.xlsx"
     w = open_workbook(workbook)
     sheet = w.sheet_by_index(0)
+    print 'Loading outlets!'
     outlets = []
     ids = []
     for rowidx in range(1,sheet.nrows):
@@ -228,40 +270,138 @@ def generate_index(records, index_path=None):
     return sp_index
 
 
-"""Function for getting accessible outlets, given an accessibility prism"""
-def getAccessibleOutlets(prism, sidx,ids, outlets, save=r"C:\Users\schei008\Dropbox\Schriften\Exchange\GOF\results\presoutlets.shp"):
-    print "start selecting outlets within prism"      # Define a polygon feature geometry with one attribute
 
-    selection = sidx.intersection(prism.bounds)
-    selection = [i for i in selection if outlets[int(i)].within(prism)]
-    candidates  = [outlets[int(i)] for i in selection]
-    candidateids  = [ids[int(i)] for i in selection]
+#-----------------------------------------------------------------------------------------
 
-    #print candidates
-    #print candidateids
+"""Functions for generating and handling trip events"""
+
+class FlexEvent():
+    def __init__(self, user, mod1, st1, sp1, pt1, pp1, mod2, st2, pt2, pp2):
+         self.user = user
+         self.mod1 =mod1
+         self.st1 = st1
+         self.sp1= sp1
+         self.pt1 =pt1
+         self.pp1 =pp1
+         self.mod2 =mod2
+         self.st2 = st2
+         self.pt2 =pt2
+         self.pp2 =pp2
+         self.eventduration = (self.st2 -  self.pt1 ).total_seconds()
+         self.category = (self.pp1['label']).split(':')[0]
+
+    def serialize(self):
+        return {
+         'user':str(self.user),
+         'trip1': {'mod1':str(self.mod1),
+         'starttime1':str(self.st1),
+         'startplace1': {'label':self.sp1['label'], 'geo':str(self.sp1['geo'])},
+         'stoptime1':str(self.pt1),
+         'stopplace1':{'label':self.pp1['label'], 'geo':str(self.pp1['geo'])}} ,
+          'trip2': {
+         'mod2':self.mod2,
+         'starttime2':str(self.st2),
+         'stoptime2':str(self.pt2),
+         'stopplace2':{'label':self.pp2['label'], 'geo':str(self.pp2['geo'])}},
+         'eventduration':str(self.eventduration),
+         'category':str(self.category)
+        }
+    def map(self, id):
+        newpath=os.path.join(results,str(self.user))
+        if not os.path.exists(newpath):
+            os.makedirs(newpath)
+
+        save = os.path.join(newpath,str(id)+".shp" )
+        schema = {
+            'geometry': 'Point',
+            'properties': { 'label':'str'},
+            }
+
+        # Write a new Shapefile
+        with fiona.open(save, 'w', 'ESRI Shapefile', schema) as c:
+            ## If there are multiple geometries, put the "for" loop here
+                    c.write({
+                        'geometry': mapping(transform(project,self.sp1['geo'])),
+                        'properties': {'label':self.sp1['label']},
+                        })
+                    c.write({
+                        'geometry': mapping(transform(project,self.pp1['geo'])),
+                        'properties': {'label':self.pp1['label']},
+                        })
+                    c.write({
+                        'geometry': mapping(transform(project,self.pp2['geo'])),
+                        'properties': {'label':self.pp2['label']},
+                        })
+        c.close
 
 
+
+
+"""Function for constructing fixed and flexible (food) events from a collection of trips"""
+def constructEvents(trips, places, sidx,ids, outlets):
+    for t in trips:
+        track = t[1]
+        user = str(t[0])
+        print user
+        userplaces = places[user]
+        activityMap(user, userplaces)
+        store = os.path.join(results,str(user)+"events.json")
+        lastrow = pd.Series()
+        dump = {}
+        eventnr = 0
+        for index, row in track.iterrows():
+            if not lastrow.empty:
+                mod1, st1, sp1, pt1, pp1 =  getTripInfo(lastrow)
+                mod2, st2, sp2, pt2, pp2 =  getTripInfo(row)
+                if flexibleEvent(userplaces,mod1, st1, sp1, pt1, pp1, mod2, st2, sp2, pt2, pp2):
+                      fe = FlexEvent(user,mod1, st1, userplaces[sp1], pt1, userplaces[pp1], mod2, st2, pt2, userplaces[pp2])
+                      eventnr +=1
+                      fe.map(eventnr)
+                      dump[eventnr]=fe.serialize()
+                      getAffordances(user, eventnr, fe.sp1['geo'], fe.st1, fe.mod1, fe.pp2['geo'], fe.pt2, fe.mod2, int(float(fe.eventduration)), sidx,ids, outlets)
+                      break
+            lastrow  =row
+        print str(len(dump.keys()))+' flexible events detected for user ' + str(user)
+        with open(store, 'w') as fp:
+            json.dump(dump, fp)
+        fp.close
+        break
+
+def activityMap(user, places):
+    save=os.path.join(results,str(user)+"places.shp")
     schema = {
         'geometry': 'Point',
-        'properties': {'id': 'int'},
-    }
+        'properties': {'id': 'int', 'label':'str'},
+        }
+
     # Write a new Shapefile
     with fiona.open(save, 'w', 'ESRI Shapefile', schema) as c:
         ## If there are multiple geometries, put the "for" loop here
-        for id, g in enumerate(candidates):
-            c.write({
-                'geometry': mapping(g),
-                'properties': {'id': candidateids[id]},
-                })
-    return candidates, candidateids
+            for place in places.keys():
+                c.write({
+                    'geometry': mapping(transform(project,places[place]['geo'])),
+                    'properties': {'id': place, 'label':places[place]['label']},
+                    })
+    c.close
 
 
-#Turns point list into geopandas data frame
-def Polygon2GDF(polygon):
-        rt = pd.DataFrame({'polygons': [polygon]})
-        outputframe = geopandas.GeoDataFrame(rt, geometry='polygons')['polygons']
-        return outputframe
 
+def flexibleEvent(userplaces,mod1, st1, sp1, pt1, pp1, mod2, st2, sp2, pt2, pp2):
+    maxeventduration = (st2 -  pt1 ).total_seconds()
+    if sp1 in userplaces.keys() and pp1 in userplaces.keys() and sp2 in userplaces.keys() and pp2 in userplaces.keys():
+        category = (userplaces[pp1]['label']).split(':')[0]
+        return  pp1 == sp2 and maxeventduration < 2*3600 and category in foodOutletLabels
+    else:
+        return False
+
+def getTripInfo(row):
+    return row['modality'],dateparse(row['startTime']), cn(row['startPlaceId']), dateparse(row['stopTime']),cn(row['stopPlaceId'])
+
+def cn(n):
+    if str(n) != 'nan':
+        return str(int(n))
+    else:
+        return None
 
 def getActivityLabels(csvfile):
     ls = []
@@ -277,20 +417,68 @@ foodOutletLabels = ['SHOP_GREENGROCER', 'SHOP_ALCOHOL' ,'SHOP_SUPERMARKET','FOOD
 #Take the actual eventtime and assume all outlets can be visited within this time
 #modifierabletransportevents = [eventime <<< timewindow]
 
+def loadPlaces(places):
+    ls = {}
+    with open(places, 'rb') as csvfile:
+        reader = csv.reader(csvfile, delimiter=',', quotechar='"')
+        next(reader) #First line skipped
+        for row in reader:
+            user = row[1]
+            place = row[0]
+            if user not in  ls.keys():
+                ls[user]={place:{'label':row[2], 'geo': loads(row[4])}}
+
+            else:
+                ls[user][place] = {'label':row[2], 'geo': loads(row[4])}
+
+    csvfile.close
+    #print ls
+    return ls
+
+def dateparse (timestamp):
+        return pd.datetime.strptime(timestamp, '%Y-%m-%d %H:%M:%S.%f')
+
+def loadTrips(trips):
+    #headers = ['deviceId','modality','distance','startTime','stopTime','startCountry','startPc','startCity','startStreet','stopCountry','stopPc','stopCity','stopStreet','startPlaceId','stopPlaceId']
+    #dtypes = [str, str, int, datetime, datetime, str, str, str, str,str,str,str,str,int,int]
+
+    #dateCols = ['startTime','stopTime']
+    tr = pd.read_csv(trips, sep=',', parse_dates=True, date_parser=dateparse)
+    #tr = pd.read_csv(trips)
+    tr = list(tr.groupby('deviceId'))
+    print 'number of users loaded: '+ str(len(tr))
+    return tr
+
+
+results = r"C:\Temp\FoodResults"
 def main():
       #print  getActivityLabels(r"C:\Users\schei008\Dropbox\Schriften\Exchange\GOF\foodtracker\places.csv")
+    sidx,ids, outlets = loadOutlets()
+    places =r"C:\Users\schei008\Dropbox\Schriften\Exchange\GOF\foodtracker\places.csv"
+    trips = r"C:\Users\schei008\Dropbox\Schriften\Exchange\GOF\foodtracker\trips.csv"
+
+    pl = loadPlaces(places)
+    tr = loadTrips(trips)
+    constructEvents(tr,pl,sidx,ids, outlets)
+
+
+
+
+
+
+
     #Lat 52.088816 | Longitude: 5.095833
     #isoline = getisoline(Point(52.088816,5.095833), 600)
-    eventid = 0
-    startpoint = Point(5.095833, 52.088816)
-    endpoint = Point(5.178099,52.085665)
-    starttime = datetime.strptime("2013-07-04T17:00:00",'%Y-%m-%dT%H:%M:%S')
-    endtime =   datetime.strptime("2013-07-04T17:50:00",'%Y-%m-%dT%H:%M:%S')
-
-    mineventduration = 1800
-    sidx,ids, outlets = loadOutlets()
-
-    getAffordances(eventid, startpoint, starttime, endpoint, endtime, mineventduration, sidx,ids, outlets)
+##    eventid = 0
+##    startpoint = Point(5.095833, 52.088816)
+##    endpoint = Point(5.178099,52.085665)
+##    starttime = datetime.strptime("2013-07-04T17:00:00",'%Y-%m-%dT%H:%M:%S')
+##    endtime =   datetime.strptime("2013-07-04T17:50:00",'%Y-%m-%dT%H:%M:%S')
+##
+##    mineventduration = 1800
+##
+##
+##    getAffordances(eventid, startpoint, starttime, endpoint, endtime, mineventduration, sidx,ids, outlets)
 
 
 
