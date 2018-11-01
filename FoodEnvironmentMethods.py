@@ -7,7 +7,7 @@
 #
 # Author:      Simon Scheider
 #
-# Created:     05/10/2018
+# Created:     01/11/2018
 # Copyright:   (c) Simon Scheider 2018
 # Licence:     MIT license
 #-----------------------------------------------------------------------------
@@ -390,6 +390,8 @@ def constructEvents(trips, places, outletdata):
                       fe.map(eventnr)
                       dump[eventnr]=fe.serialize()
                       getAffordances(user, eventnr, fe.sp1['geo'], fe.st1, fe.mod1, fe.pp2['geo'], fe.pt2, fe.mod2, int(float(fe.eventduration)), sidx,ids, outlets, cat)
+                else:
+                    print "not a flexible event!"
             lastrow  =row
 
         print str(len(dump.keys()))+' flexible events detected for user ' + str(user)
@@ -419,9 +421,9 @@ def activityMap(user, places):
 
 def flexibleEvent(userplaces,mod1, st1, sp1, pt1, pp1, mod2, st2, sp2, pt2, pp2):
     maxeventduration = (st2 -  pt1 ).total_seconds()
-    if sp1 in userplaces.keys() and pp1 in userplaces.keys() and sp2 in userplaces.keys() and pp2 in userplaces.keys():
+    if sp1 in userplaces.keys() and pp1 in userplaces.keys() and sp2 in userplaces.keys() and pp2 in userplaces.keys(): #Places available in place set?
         category = (userplaces[pp1]['label']).split(':')[0]
-        return  pp1 == sp2 and maxeventduration < 2*3600 and category in foodOutletLabels  and mod1 != ""
+        return  pp1 == sp2 and maxeventduration < 2*3600 and category in foodOutletLabels  and mod1 != ""    #Place
     else:
         return False
 
@@ -476,8 +478,8 @@ def loadTrips(trips):
     #dateCols = ['startTime','stopTime']
     tr = pd.read_csv(trips, sep=',', parse_dates=True, date_parser=dateparse)
     #tr = pd.read_csv(trips)
-    ti1 = datetime.strptime("2016-09-05T12:00:00",'%Y-%m-%dT%H:%M:%S')
-    ti2 =  datetime.strptime("2016-09-10T23:50:00",'%Y-%m-%dT%H:%M:%S')
+    ti1 = datetime.strptime("2016-10-25T12:00:00",'%Y-%m-%dT%H:%M:%S')
+    ti2 =  datetime.strptime("2016-10-30T23:50:00",'%Y-%m-%dT%H:%M:%S')
     tr = tr[tr['startTime'].apply(lambda x: dateparse(x) >=ti1 and dateparse(x) <=ti2)]
     tr = list(tr.groupby('deviceId'))
     print 'number of users loaded: '+ str(len(tr))
