@@ -19,7 +19,7 @@ myappcode = 'bS_F57D8weI6ZNzEYJ_UmQ'
 import json
 import shapely
 from shapely import geometry
-from shapely.geometry import shape, Point, mapping, Polygon
+from shapely.geometry import shape, Point, mapping, Polygon, MultiLineString
 from shapely.wkt import loads
 import fiona
 import geopandas
@@ -27,7 +27,7 @@ from geopandas.tools import sjoin
 import pandas as pd
 import numpy as np
 
-from datetime import  date, datetime
+from datetime import  date, datetime, timedelta
 
 import pyproj
 #see https://github.com/jswhit/pyproj
@@ -298,8 +298,9 @@ def generate_index(records, index_path=None):
 
 #-----------------------------------------------------------------------------------------
 
-"""Functions for generating and handling trip events"""
+"""Functions for generating and handling modifiable food events"""
 
+#This class captures modifiable food events consisting of: travel - food activity - travel
 class FlexEvent():
     def __init__(self, user, mod1, st1, sp1, pt1, pp1, mod2, st2, pt2, pp2):
          self.user = user
@@ -359,18 +360,69 @@ class FlexEvent():
                         })
         c.close
 
+#This class is more tolerant and captures also single trip events (without goal activity)
+class FlexTrip():
+    def __init__(self, user, mod1, st1, sp1, pt1, pp1):
+         self.user = user
+         self.mod1 =mod1
+         self.st1 = st1
+         self.sp1= sp1
+         self.pt1 =pt1
+         self.pp1 =pp1
+         self.eventduration = (self.st1 -  self.pt1 ).total_seconds()
+         #self.category = (self.pp1['label']).split(':')[0]
+
+    def serialize(self):
+        return {
+         'user':str(self.user),
+         'trip1': {'mod1':str(self.mod1),
+         'starttime1':str(self.st1),
+         'startplace1': {'label':self.sp1['label'], 'geo':str(self.sp1['geo'])},
+         'stoptime1':str(self.pt1),
+         'stopplace1':{'label':self.pp1['label'], 'geo':str(self.pp1['geo'])}} ,
+         'eventduration':str(self.eventduration)
+        }
+    def map(self, id):
+        newpath=os.path.join(results,str(self.user))
+        if not os.path.exists(newpath):
+            os.makedirs(newpath)
+
+        save = os.path.join(newpath,str(id)+".shp" )
+        schema = {
+            'geometry': 'Point',
+            'properties': { 'label':'str'},
+            }
+
+        # Write a new Shapefile
+        with fiona.open(save, 'w', 'ESRI Shapefile', schema) as c:
+            ## If there are multiple geometries, put the "for" loop here
+                    c.write({
+                        'geometry': mapping(transform(project,self.sp1['geo'])),
+                        'properties': {'label':self.sp1['label']},
+                        })
+                    c.write({
+                        'geometry': mapping(transform(project,self.pp1['geo'])),
+                        'properties': {'label':self.pp1['label']},
+                        })
+
+        c.close
+
 
 
 
 """Function for constructing fixed and flexible (food) events from a collection of trips"""
-def constructEvents(trips, places, outletdata):
+def constructEvents(trips, places, outletdata, tripeventsOn=False):
     for t in trips:
         print t
         track = t
         user = str(t['deviceId'].iloc[0])
         print user
         userplaces = places[user]
+        #generating simple methods first:
+        homeBuffer(user,userplaces, outletdata,'Bike')
+        activitySpace(user,userplaces,track, outletdata)
         activityMap(user, userplaces)
+        break
         store = os.path.join(results,str(user)+"events.json")
         lastrow = pd.Series()
         dump = {}
@@ -385,12 +437,30 @@ def constructEvents(trips, places, outletdata):
                       category = (userplaces[pp1]['label']).split(':')[0]
                       if category.split('_')[0]== 'FOOD': #Horeca outlets
                         sidx,ids, outlets, cat = outletdata[0],outletdata[1],outletdata[2],outletdata[3]
+                        print 'simulated HORECA event'
                       else:                                 #Shop outlets
                         sidx,ids, outlets,cat = outletdata[4],outletdata[5],outletdata[6],outletdata[7]
+                        print 'simulated SHOP event'
                       eventnr +=1
                       fe.map(eventnr)
                       dump[eventnr]=fe.serialize()
                       getAffordances(user, eventnr, fe.sp1['geo'], fe.st1, fe.mod1, fe.pp2['geo'], fe.pt2, fe.mod2, int(float(fe.eventduration)), sidx,ids, outlets, cat)
+                elif tripeventsOn and flexibleTripEvent(userplaces,mod1, st1, sp1, pt1+timedelta(seconds=600), pp1, 1600): #simulated HORECA event within a single trip: 30 minutes, assuming ten minutes more time
+                    fe = FlexTrip(user,mod1, st1, userplaces[sp1], pt1+timedelta(seconds=600), userplaces[pp1])
+                    sidx,ids, outlets, cat = outletdata[0],outletdata[1],outletdata[2],outletdata[3]
+                    print 'simulated HORECA event'
+                    eventnr +=1
+                    fe.map(eventnr)
+                    dump[eventnr]=fe.serialize()
+                    getAffordances(user, eventnr, fe.sp1['geo'], fe.st1, fe.mod1, fe.pp1['geo'], fe.pt1, fe.mod1, 1600, sidx,ids, outlets, cat)
+                elif tripeventsOn and flexibleTripEvent(userplaces,mod1, st1, sp1, pt1+timedelta(seconds=600), pp1, 900): #simulated Shop event within a single trip: 15 minutes, assuming ten minutes more time
+                    fe = FlexTrip(user,mod1, st1, userplaces[sp1], pt1+timedelta(seconds=600), userplaces[pp1])
+                    sidx,ids, outlets,cat = outletdata[4],outletdata[5],outletdata[6],outletdata[7]
+                    print 'simulated SHOP event'
+                    eventnr +=1
+                    fe.map(eventnr)
+                    dump[eventnr]=fe.serialize()
+                    getAffordances(user, eventnr, fe.sp1['geo'], fe.st1, fe.mod1, fe.pp1['geo'], fe.pt1, fe.mod1, 900, sidx,ids, outlets, cat)
                 else:
                     print "not a flexible event!"
             lastrow  =row
@@ -441,6 +511,27 @@ def flexibleEvent(userplaces,mod1, st1, sp1, pt1, pp1, mod2, st2, sp2, pt2, pp2)
         else:
             print 'stopplace 1 != startplace 2'
             return False
+    else:
+        print 'place not in userplaces!'
+        return False
+
+def flexibleTripEvent(userplaces,mod1, st1, sp1, pt1, pp1, eventduration):
+    tripduration = (st1 -  pt1 ).total_seconds()
+    if sp1 in userplaces.keys() and pp1 in userplaces.keys(): #Places available in place set?
+            if  tripduration > eventduration+300: #trip must at least last for eventduration + 5 minutes to enable food event
+                #category = (userplaces[pp1]['label']).split(':')[0]
+                #if category in foodOutletLabels:
+                    if mod1 != "":
+                        return True
+                    else:
+                        print 'modus 1 not available'
+                        return False
+                #else:
+                #    print 'place category not in foodlabels'
+                #    return False
+            else:
+                print 'beyond tripduration'
+                return False
     else:
         print 'place not in userplaces!'
         return False
@@ -524,6 +615,77 @@ def loadTrips(trips, usersample):
     #print (validids)
     return out
 
+
+#-------------------------------------------Simple methods
+
+def homeBuffer(user,userplaces, outletdata, mode):
+    home = None
+    availabletime = 1800 #30 minutes from home buffer
+    if mode =='Bike':
+        print 'bike modeled by 3 times foot!'
+        availabletime  = ((availabletime)*3)  #In order to compensate for missing bike mode we use the pedestrian mode and give it 4  times more time
+
+    mode=convertMode(mode)          #This is needed because there are only car and predestrian modes available
+
+    newpath =os.path.join(results,user)
+    if not os.path.exists(newpath):
+        os.makedirs(newpath)
+    for p in userplaces.values():
+        if p['label']=='Home':
+            home = p['geo']
+            break
+    if home !=None:
+        poly = transform(project, getisoline(home,availabletime, mode = mode)) #assuming the car default
+        sidx,ids, outlets, cat = outletdata[0],outletdata[1],outletdata[2],outletdata[3]
+        print 'simulated HORECA buffer'
+        candidates, candidateids, candidatecats = getPrismOutlets(poly, sidx,ids, outlets, cat)
+        saveOutlets([[candidateids[i],candidates[i],candidatecats[i]] for i,v in enumerate(candidates)], save=os.path.join(newpath,"bufferHORECA.shp"))
+                                     #Shop outlets
+        sidx,ids, outlets,cat = outletdata[4],outletdata[5],outletdata[6],outletdata[7]
+        print 'simulated SHOP buffer'
+        candidates, candidateids, candidatecats = getPrismOutlets(poly, sidx,ids, outlets, cat)
+        saveOutlets([[candidateids[i],candidates[i],candidatecats[i]] for i,v in enumerate(candidates)], save=os.path.join(newpath,"bufferSHOP.shp"))
+    else:
+        print "no home location for generating home buffer!"
+
+
+def activitySpace(user,userplaces,track, outletdata):
+     newpath =os.path.join(results,user)
+     if not os.path.exists(newpath):
+        os.makedirs(newpath)
+     lines = []
+     for index, row in track.iterrows():
+                mod, st, sp, pt, pp =  getTripInfo(row)
+                if sp in userplaces.keys() and pp in userplaces.keys():
+                    frompl =  userplaces[sp]
+                    topl = userplaces[pp]
+                    lines.append((transform(project,frompl['geo']), transform(project,topl['geo'])))
+     print lines
+     linestringbuffer = shape(MultiLineString(lines)).buffer(50)
+     print linestringbuffer
+     save = os.path.join(newpath,"aspace.shp" )
+     schema = {
+            'geometry': 'Polygon',
+            'properties': { 'user':'str'},
+            }
+
+        # Write a new Shapefile
+     with fiona.open(save, 'w', 'ESRI Shapefile', schema) as c:
+            ## If there are multiple geometries, put the "for" loop here
+                    c.write({
+                        'geometry': mapping(linestringbuffer),
+                        'properties': {'user':str(user)},
+                        })
+
+
+     c.close
+
+
+
+
+
+
+
 results = r"C:\Users\schei008\surfdrive\Temp\FoodResults"
 def main():
       #print  getActivityLabels(r"C:\Users\schei008\Dropbox\Schriften\Exchange\GOF\foodtracker\places.csv")
@@ -534,7 +696,7 @@ def main():
 
     pl = loadPlaces(places)
     tr = loadTrips(trips,usersample)
-    constructEvents(tr,pl,outletdata)
+    constructEvents(tr,pl,outletdata,tripeventsOn=True)
 
 
 
