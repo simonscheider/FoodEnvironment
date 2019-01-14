@@ -53,11 +53,11 @@ def getAffordances(user,eventid, startpoint, starttime, mode1, endpoint, endtime
     traveltime2 =  traveltime/2
     print "totalduration :" +str(totalduration)
     if mode1 =='Bike':
-        print 'bike modeled by 4 times foot!'
-        traveltime1  = ((traveltime1)*4)  #In order to compensate for missing bike mode we use the pedestrian mode and give it 4  times more time
+        print 'bike modeled by 3 times foot!'
+        traveltime1  = ((traveltime1)*3)  #In order to compensate for missing bike mode we use the pedestrian mode and give it 4  times more time
     if mode2 =='Bike':
-        traveltime2 = ((traveltime2)*4)  #In order to compensate for missing bike mode we use the pedestrian mode and give it 4  times more time
-        print 'bike modeled by 4 times foot!'
+        traveltime2 = ((traveltime2)*3)  #In order to compensate for missing bike mode we use the pedestrian mode and give it 4  times more time
+        print 'bike modeled by 3 times foot!'
     totalduration = mineventduration +  traveltime1 + traveltime2
     mode1=convertMode(mode1)          #This is needed because there are only car and predestrian modes available
     mode2=convertMode(mode2)
@@ -237,8 +237,8 @@ def saveOutlets(trips, save=r"C:\Users\schei008\Dropbox\Schriften\Exchange\GOF\r
     csvfile.close
 
 
-def loadOutlets(outletdata= r"C:\Temp\Locatus\outlets.shp", colx = 1, coly = 2):
-    workbook = r"C:\Temp\Locatus\Levensmiddel_Horeca_311217.xlsx"
+def loadOutlets(outletdata= r"C:\Users\schei008\surfdrive\Temp\Locatus\outlets.shp", colx = 1, coly = 2):
+    workbook = r"C:\Users\schei008\surfdrive\Temp\Locatus\Levensmiddel_Horeca_311217.xlsx"
     w = open_workbook(workbook)
     sheet = w.sheet_by_index(0)
     print 'Loading outlets!'
@@ -365,8 +365,9 @@ class FlexEvent():
 """Function for constructing fixed and flexible (food) events from a collection of trips"""
 def constructEvents(trips, places, outletdata):
     for t in trips:
-        track = t[1]
-        user = str(t[0])
+        print t
+        track = t
+        user = str(t['deviceId'].iloc[0])
         print user
         userplaces = places[user]
         activityMap(user, userplaces)
@@ -422,9 +423,26 @@ def activityMap(user, places):
 def flexibleEvent(userplaces,mod1, st1, sp1, pt1, pp1, mod2, st2, sp2, pt2, pp2):
     maxeventduration = (st2 -  pt1 ).total_seconds()
     if sp1 in userplaces.keys() and pp1 in userplaces.keys() and sp2 in userplaces.keys() and pp2 in userplaces.keys(): #Places available in place set?
-        category = (userplaces[pp1]['label']).split(':')[0]
-        return  pp1 == sp2 and maxeventduration < 2*3600 and category in foodOutletLabels  and mod1 != ""    #Place
+        if  pp1 == sp2:
+            if  maxeventduration < 2*3600:
+                category = (userplaces[pp1]['label']).split(':')[0]
+                if category in foodOutletLabels:
+                    if mod1 != "":
+                        return True
+                    else:
+                        print 'modus 1 not available'
+                        return False
+                else:
+                    print 'place category not in foodlabels'
+                    return False
+            else:
+                print 'beyond maxeventduration'
+                return False
+        else:
+            print 'stopplace 1 != startplace 2'
+            return False
     else:
+        print 'place not in userplaces!'
         return False
 
 def getTripInfo(row):
@@ -471,30 +489,51 @@ def loadPlaces(places):
 def dateparse (timestamp):
         return pd.datetime.strptime(timestamp, '%Y-%m-%d %H:%M:%S.%f')
 
-def loadTrips(trips):
+def loadTrips(trips, usersample):
     #headers = ['deviceId','modality','distance','startTime','stopTime','startCountry','startPc','startCity','startStreet','stopCountry','stopPc','stopCity','stopStreet','startPlaceId','stopPlaceId']
     #dtypes = [str, str, int, datetime, datetime, str, str, str, str,str,str,str,str,int,int]
 
     #dateCols = ['startTime','stopTime']
-    tr = pd.read_csv(trips, sep=',', parse_dates=True, date_parser=dateparse)
+    tr = pd.read_csv(trips, sep=',', parse_dates=True, date_parser=dateparse,  encoding="utf-8-sig")
     #tr = pd.read_csv(trips)
-    ti1 = datetime.strptime("2016-10-25T12:00:00",'%Y-%m-%dT%H:%M:%S')
-    ti2 =  datetime.strptime("2016-10-30T23:50:00",'%Y-%m-%dT%H:%M:%S')
-    tr = tr[tr['startTime'].apply(lambda x: dateparse(x) >=ti1 and dateparse(x) <=ti2)]
-    tr = list(tr.groupby('deviceId'))
-    print 'number of users loaded: '+ str(len(tr))
-    return tr
 
+    #print tr.keys()
+    users= pd.read_csv(usersample, sep=';', parse_dates=True, date_parser=dateparse,  encoding="utf-8-sig")
+    #print users['include']
+    validids = users[users['include']==True]
+    #print validids.keys()
+    #print validids
+    out = []
 
-results = r"C:\Temp\FoodResults"
+    for index, row in validids.iterrows():
+        #print row
+        id = row['DeviceID']
+        ti1 = datetime.strptime(row[u'START DATE'],'%Y-%m-%d')
+        ti2 = datetime.strptime(row['END DATE ']+'T23:59:00','%Y-%m-%dT%H:%M:%S')
+        print 'user: ',id, ti1, ti2
+        usertrack =tr[tr['deviceId']== id ] #and
+        usertrack =usertrack[usertrack['startTime'].apply(lambda x: dateparse(x) >=ti1 and dateparse(x) <=ti2)]
+        out.append(usertrack)
+        break
+
+    #ti1 = datetime.strptime("2016-10-25T12:00:00",'%Y-%m-%dT%H:%M:%S')
+    #ti2 =  datetime.strptime("2016-10-30T23:50:00",'%Y-%m-%dT%H:%M:%S')
+    #tr = tr[tr['startTime'].apply(lambda x: dateparse(x) >=ti1 and dateparse(x) <=ti2)]
+    #tr = list(tr.groupby('deviceId'))
+    print 'number of users loaded: '+ str(len(out))
+    #print (validids)
+    return out
+
+results = r"C:\Users\schei008\surfdrive\Temp\FoodResults"
 def main():
       #print  getActivityLabels(r"C:\Users\schei008\Dropbox\Schriften\Exchange\GOF\foodtracker\places.csv")
     outletdata = loadOutlets()
     places =r"C:\Users\schei008\Dropbox\Schriften\Exchange\GOF\foodtracker\places.csv"
     trips = r"C:\Users\schei008\Dropbox\Schriften\Exchange\GOF\foodtracker\trips.csv"
+    usersample =r"C:\Users\schei008\Dropbox\Schriften\Exchange\GOF\foodtracker\Simon_start_stop_date_per_device_ID_cleaned.csv"
 
     pl = loadPlaces(places)
-    tr = loadTrips(trips)
+    tr = loadTrips(trips,usersample)
     constructEvents(tr,pl,outletdata)
 
 
