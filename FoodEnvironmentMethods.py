@@ -19,7 +19,7 @@ myappcode = 'bS_F57D8weI6ZNzEYJ_UmQ'
 import json
 import shapely
 from shapely import geometry
-from shapely.geometry import shape, Point, mapping, Polygon, MultiLineString
+from shapely.geometry import shape, Point, mapping, Polygon, MultiLineString, LineString
 from shapely.wkt import loads
 import fiona
 import geopandas
@@ -49,68 +49,86 @@ def getAffordances(user,eventid, startpoint, starttime, mode1, endpoint, endtime
     print 'Finding afforded outlets for event ' +str(eventid)
     totalduration =  (endtime - starttime).total_seconds()
     traveltime = totalduration-mineventduration
-    traveltime1 =  traveltime/2
-    traveltime2 =  traveltime/2
-    print "totalduration :" +str(totalduration)
-    if mode1 =='Bike':
-        print 'bike modeled by 3 times foot!'
-        traveltime1  = ((traveltime1)*3)  #In order to compensate for missing bike mode we use the pedestrian mode and give it 4  times more time
-    if mode2 =='Bike':
-        traveltime2 = ((traveltime2)*3)  #In order to compensate for missing bike mode we use the pedestrian mode and give it 4  times more time
-        print 'bike modeled by 3 times foot!'
-    totalduration = mineventduration +  traveltime1 + traveltime2
-    mode1=convertMode(mode1)          #This is needed because there are only car and predestrian modes available
-    mode2=convertMode(mode2)
-    newpath =os.path.join(results,user)
-    if not os.path.exists(newpath):
-        os.makedirs(newpath)
-    prism = getPrism(starttime.isoformat(),startpoint, endtime.isoformat(), endpoint, totalduration, mineventduration, mode1=mode1, mode2=mode2, save=os.path.join(newpath,str(eventid)+"prism.shp"))
-    if prism.is_empty:
-        print 'prism empty!!! continue without'
-        return
-    candidates, candidateids, candidatecats = getPrismOutlets(prism, sidx,ids, outlets, cat, save=os.path.join(newpath,str(eventid)+"preso.shp"))
-    print str(len(candidates))+" outlets pre-selected!"
-    v1 = get1TravelMatrix(startpoint, starttime.isoformat(), candidates, mode=mode1)
-    v2 = get1TravelMatrix(endpoint, endtime.isoformat(), candidates, mode=mode2, inverse=True)
-    trips = getAffordedTrips(candidateids, candidates, candidatecats,v1,v2, mineventduration, totalduration)
-    saveOutlets(trips,save=os.path.join(newpath,str(eventid)+"afo.shp"))
+    if traveltime > 0:
+        traveltime1 =  traveltime/2
+        traveltime2 =  traveltime/2
+        print "totalduration :" +str(totalduration)
+        print 'eventduration : '+str(mineventduration)
+        print "modes: "+mode1 +' and '+mode2
+        if mode1 =='Bike':
+            print 'bike modeled by 3 times foot!'
+            traveltime1  = ((traveltime1)*3)  #In order to compensate for missing bike mode we use the pedestrian mode and give it 4  times more time
+        elif mode1 =='Car':
+            traveltime1 = ((traveltime1)*1.4)
+        elif mode1 =='Train':
+            traveltime1 = ((traveltime1)*1.6)
+        if mode2 =='Bike':
+            traveltime2 = ((traveltime2)*3)  #In order to compensate for missing bike mode we use the pedestrian mode and give it 4  times more time
+            print 'bike modeled by 3 times foot!'
+        elif mode2 =='Car':
+            traveltime2 = ((traveltime2)*1.4)
+        elif mode1 =='Train':
+            traveltime2 = ((traveltime2)*1.6)
+        totalduration = mineventduration +  traveltime1 + traveltime2
+        mode1=convertMode(mode1)          #This is needed because there are only car and predestrian modes available
+        mode2=convertMode(mode2)
+        newpath =os.path.join(results,user)
+        if not os.path.exists(newpath):
+            os.makedirs(newpath)
+        prism = getPrism(starttime.isoformat(),startpoint, endtime.isoformat(), endpoint, totalduration, mineventduration, mode1=mode1, mode2=mode2, save=os.path.join(newpath,str(eventid)+"prism.shp"))
+        if prism.is_empty:
+            print 'prism empty!!! continue without'
+            return
+        candidates, candidateids, candidatecats = getPrismOutlets(prism, sidx,ids, outlets, cat, save=os.path.join(newpath,str(eventid)+"preso.shp"))
+        print str(len(candidates))+" outlets pre-selected!"
+        if len(candidates) >0:
+            v1 = get1TravelMatrix(startpoint, starttime.isoformat(), candidates, mode=mode1)
+            v2 = get1TravelMatrix(endpoint, endtime.isoformat(), candidates, mode=mode2, inverse=True)
+            trips = getAffordedTrips(candidateids, candidates, candidatecats,v1,v2, mineventduration, totalduration)
+            saveOutlets(trips,save=os.path.join(newpath,str(eventid)+"afo.shp"))
+        else:
+            "no cancdidates found within prism!"
+    else:
+        print 'no time left!'
 
 def convertMode(mode):
     if mode == "Foot" or mode == "Bike" or 'unknown':
         return 'pedestrian'
     elif mode == 'Car' or mode=='Train' or mode == 'BusTram':
-        return'car'
+        return 'car'
 
 
 def getPrism(starttime,startpoint, endtime, endpoint, timewindow, mineventduration=300, mode1="car", mode2="car", save=r"C:\Users\schei008\Dropbox\Schriften\Exchange\GOF\results\prism.shp"):
     print "Start getting accessibility prism"
     #starttime=starttime+datetime.timedelta()
-    availabletime = timewindow-mineventduration-300 #5 minutes minimum to get to the destination
-    print "maxtraveltime: " +str(availabletime)
-    print "for "+ mode1 + " and for " +mode2
+    availabletime = timewindow-mineventduration #1 minute minimum to get to the destination
+    #print "maxtraveltime: " +str(availabletime)
+    #print "for "+ mode1 + " and for " +mode2
     polystart = transform(project, getisoline(startpoint,availabletime, mode= mode1, starttime=starttime))
     polyend = transform(project, getisoline(endpoint, availabletime, mode=mode2, starttime=endtime)) #De Uithof
+    if polystart.is_empty or polyend.is_empty:
+        print "polygon empty!"
     inters = polystart.intersection(polyend)
-    schema = {
-        'geometry': 'Polygon',
-        'properties': {'id': 'int'},
-        }
+    #schema = {
+    #    'geometry': 'Polygon',
+    #    'properties': {'id': 'int'},
+    #    }
 
     # Write a new Shapefile
-    with fiona.open(save, 'w', 'ESRI Shapefile', schema) as c:
-        ## If there are multiple geometries, put the "for" loop here
-            c.write({
-                'geometry': mapping(inters),
-                'properties': {'id': 0},
-                })
+    #with fiona.open(save, 'w', 'ESRI Shapefile', schema) as c:
+    #    ## If there are multiple geometries, put the "for" loop here
+    #        c.write({
+    #            'geometry': mapping(inters),
+    #            'properties': {'id': 0},
+    #            })
 
-    c.close
+    #c.close
     prism = inters
     #print prism
     return prism
 
 def getisoline(startpoint, durationseconds, mode="car", starttime="2013-07-04T17:00:00"):   #pedestrian; publicTransport; bicycle
-    ruri = "https://isoline.route.api.here.com/routing/7.2/calculateisoline.json?app_id="+myappid+"&app_code="+myappcode+"&mode=shortest;"+mode+";traffic:disabled&start=geo!"+str(startpoint.y)+","+str(startpoint.x)+"&range="+str(int(durationseconds))+"&rangetype=time&departure="+starttime
+    ruri = "https://isoline.route.api.here.com/routing/7.2/calculateisoline.json?app_id="+myappid+"&app_code="+myappcode+"&mode=fastest;"+mode+";traffic:disabled&start=geo!"+str(startpoint.y)+","+str(startpoint.x)+"&range="+str(int(durationseconds))+"&rangetype=time&departure="+starttime+"&quality=2"
     myResponse = requests.get(ruri)
     # For successful API call, response code will be 200 (OK)
     if(myResponse.ok):
@@ -164,7 +182,7 @@ def get1TravelMatrix(startpoint, starttime, outlets, mode="car", inverse=False):
     else:
         od = 'start'
         outl = 'destination'
-    ruri0 = "https://matrix.route.api.here.com/routing/7.2/calculatematrix.json?app_id="+myappid+"&app_code="+myappcode+"&summaryAttributes=traveltime&mode=shortest;"+mode+";traffic:disabled&"+od+"0="+str(startpoint.y)+","+str(startpoint.x)+"&departure="+starttime
+    ruri0 = "https://matrix.route.api.here.com/routing/7.2/calculatematrix.json?app_id="+myappid+"&app_code="+myappcode+"&summaryAttributes=traveltime&mode=fastest;"+mode+";traffic:disabled&"+od+"0="+str(startpoint.y)+","+str(startpoint.x)+"&departure="+starttime
     print "getting routing matrix"
     traveltimes = np.array([])
     c =0
@@ -419,10 +437,9 @@ def constructEvents(trips, places, outletdata, tripeventsOn=False):
         print user
         userplaces = places[user]
         #generating simple methods first:
-        homeBuffer(user,userplaces, outletdata,'Bike')
         activitySpace(user,userplaces,track, outletdata)
+        homeBuffer(user,userplaces, outletdata,'Bike')
         activityMap(user, userplaces)
-        break
         store = os.path.join(results,str(user)+"events.json")
         lastrow = pd.Series()
         dump = {}
@@ -445,22 +462,22 @@ def constructEvents(trips, places, outletdata, tripeventsOn=False):
                       fe.map(eventnr)
                       dump[eventnr]=fe.serialize()
                       getAffordances(user, eventnr, fe.sp1['geo'], fe.st1, fe.mod1, fe.pp2['geo'], fe.pt2, fe.mod2, int(float(fe.eventduration)), sidx,ids, outlets, cat)
-                elif tripeventsOn and flexibleTripEvent(userplaces,mod1, st1, sp1, pt1+timedelta(seconds=600), pp1, 1600): #simulated HORECA event within a single trip: 30 minutes, assuming ten minutes more time
-                    fe = FlexTrip(user,mod1, st1, userplaces[sp1], pt1+timedelta(seconds=600), userplaces[pp1])
-                    sidx,ids, outlets, cat = outletdata[0],outletdata[1],outletdata[2],outletdata[3]
-                    print 'simulated HORECA event'
-                    eventnr +=1
-                    fe.map(eventnr)
-                    dump[eventnr]=fe.serialize()
-                    getAffordances(user, eventnr, fe.sp1['geo'], fe.st1, fe.mod1, fe.pp1['geo'], fe.pt1, fe.mod1, 1600, sidx,ids, outlets, cat)
-                elif tripeventsOn and flexibleTripEvent(userplaces,mod1, st1, sp1, pt1+timedelta(seconds=600), pp1, 900): #simulated Shop event within a single trip: 15 minutes, assuming ten minutes more time
+                elif tripeventsOn and flexibleTripEvent(userplaces,mod1, st1, sp1, pt1+timedelta(seconds=600), pp1, 600): #simulated Shop event within a single trip: 10 minutes, assuming 10 minutes more time
                     fe = FlexTrip(user,mod1, st1, userplaces[sp1], pt1+timedelta(seconds=600), userplaces[pp1])
                     sidx,ids, outlets,cat = outletdata[4],outletdata[5],outletdata[6],outletdata[7]
-                    print 'simulated SHOP event'
+                    print 'simulated SHOP trip'
                     eventnr +=1
                     fe.map(eventnr)
                     dump[eventnr]=fe.serialize()
-                    getAffordances(user, eventnr, fe.sp1['geo'], fe.st1, fe.mod1, fe.pp1['geo'], fe.pt1, fe.mod1, 900, sidx,ids, outlets, cat)
+                    getAffordances(user, eventnr, fe.sp1['geo'], fe.st1, fe.mod1, fe.pp1['geo'], fe.pt1, fe.mod1, 600, sidx,ids, outlets, cat)
+                elif tripeventsOn and flexibleTripEvent(userplaces,mod1, st1, sp1, pt1+timedelta(seconds=600), pp1, 1200): #simulated HORECA event within a single trip: 20 minutes, assuming 10 minutes more time
+                    fe = FlexTrip(user,mod1, st1, userplaces[sp1], pt1+timedelta(seconds=600), userplaces[pp1])
+                    sidx,ids, outlets, cat = outletdata[0],outletdata[1],outletdata[2],outletdata[3]
+                    print 'simulated HORECA trip'
+                    eventnr +=1
+                    fe.map(eventnr)
+                    dump[eventnr]=fe.serialize()
+                    getAffordances(user, eventnr, fe.sp1['geo'], fe.st1, fe.mod1, fe.pp1['geo'], fe.pt1, fe.mod1, 1200, sidx,ids, outlets, cat)
                 else:
                     print "not a flexible event!"
             lastrow  =row
@@ -469,7 +486,7 @@ def constructEvents(trips, places, outletdata, tripeventsOn=False):
         with open(store, 'w') as fp:
             json.dump(dump, fp)
         fp.close
-        break
+
 
 def activityMap(user, places):
     save=os.path.join(results,str(user)+"places.shp")
@@ -516,9 +533,9 @@ def flexibleEvent(userplaces,mod1, st1, sp1, pt1, pp1, mod2, st2, sp2, pt2, pp2)
         return False
 
 def flexibleTripEvent(userplaces,mod1, st1, sp1, pt1, pp1, eventduration):
-    tripduration = (st1 -  pt1 ).total_seconds()
+    tripduration = ( pt1 - st1).total_seconds()
     if sp1 in userplaces.keys() and pp1 in userplaces.keys(): #Places available in place set?
-            if  tripduration > eventduration+300: #trip must at least last for eventduration + 5 minutes to enable food event
+            if  tripduration >= eventduration: #trip must at least last for eventduration + 1 minutes to enable food event
                 #category = (userplaces[pp1]['label']).split(':')[0]
                 #if category in foodOutletLabels:
                     if mod1 != "":
@@ -659,10 +676,11 @@ def activitySpace(user,userplaces,track, outletdata):
                 if sp in userplaces.keys() and pp in userplaces.keys():
                     frompl =  userplaces[sp]
                     topl = userplaces[pp]
-                    lines.append((transform(project,frompl['geo']), transform(project,topl['geo'])))
-     print lines
-     linestringbuffer = shape(MultiLineString(lines)).buffer(50)
-     print linestringbuffer
+                    lines.append(LineString([transform(project,frompl['geo']), transform(project,topl['geo'])]))
+     #print lines #transform(project, transform(project,
+     multiline = MultiLineString(lines)
+     linestringbuffer = shape(multiline).buffer(50)
+     #print linestringbuffer
      save = os.path.join(newpath,"aspace.shp" )
      schema = {
             'geometry': 'Polygon',
@@ -679,6 +697,15 @@ def activitySpace(user,userplaces,track, outletdata):
 
 
      c.close
+     sidx,ids, outlets, cat = outletdata[0],outletdata[1],outletdata[2],outletdata[3]
+     print 'simulated HORECA aSpace'
+     candidates, candidateids, candidatecats = getPrismOutlets(linestringbuffer, sidx,ids, outlets, cat)
+     saveOutlets([[candidateids[i],candidates[i],candidatecats[i]] for i,v in enumerate(candidates)], save=os.path.join(newpath,"aSpaceHORECA.shp"))
+                                     #Shop outlets
+     sidx,ids, outlets,cat = outletdata[4],outletdata[5],outletdata[6],outletdata[7]
+     print 'simulated SHOP aSpace'
+     candidates, candidateids, candidatecats = getPrismOutlets(linestringbuffer, sidx,ids, outlets, cat)
+     saveOutlets([[candidateids[i],candidates[i],candidatecats[i]] for i,v in enumerate(candidates)], save=os.path.join(newpath,"aSpaceSHOP.shp"))
 
 
 
