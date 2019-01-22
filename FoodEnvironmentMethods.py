@@ -59,16 +59,16 @@ def getAffordances(user,eventid, startpoint, starttime, mode1, endpoint, endtime
             print 'bike modeled by 3 times foot!'
             traveltime1  = ((traveltime1)*3)  #In order to compensate for missing bike mode we use the pedestrian mode and give it 4  times more time
         elif mode1 =='Car':
-            traveltime1 = ((traveltime1)*1.4)
+            traveltime1 = ((traveltime1)*1.6)  #This compensates for underestimating speed in the network?
         elif mode1 =='Train':
-            traveltime1 = ((traveltime1)*1.6)
+            traveltime1 = ((traveltime1)*1.8)
         if mode2 =='Bike':
             traveltime2 = ((traveltime2)*3)  #In order to compensate for missing bike mode we use the pedestrian mode and give it 4  times more time
             print 'bike modeled by 3 times foot!'
         elif mode2 =='Car':
-            traveltime2 = ((traveltime2)*1.4)
-        elif mode1 =='Train':
             traveltime2 = ((traveltime2)*1.6)
+        elif mode1 =='Train':
+            traveltime2 = ((traveltime2)*1.8)
         totalduration = mineventduration +  traveltime1 + traveltime2
         mode1=convertMode(mode1)          #This is needed because there are only car and predestrian modes available
         mode2=convertMode(mode2)
@@ -429,7 +429,7 @@ class FlexTrip():
 
 
 """Function for constructing fixed and flexible (food) events from a collection of trips"""
-def constructEvents(trips, places, outletdata, tripeventsOn=False):
+def constructEvents(trips, places, outletdata, tripeventsOn):
     for t in trips:
         print t
         track = t
@@ -596,6 +596,9 @@ def loadPlaces(places):
 
 def dateparse (timestamp):
         return pd.datetime.strptime(timestamp, '%Y-%m-%d %H:%M:%S.%f')
+def dateparse2 (timestamp):
+    return pd.datetime.strptime(timestamp, '%d-%m-%Y %H:%M')
+
 
 def loadTrips(trips, usersample):
     #headers = ['deviceId','modality','distance','startTime','stopTime','startCountry','startPc','startCity','startStreet','stopCountry','stopPc','stopCity','stopStreet','startPlaceId','stopPlaceId']
@@ -708,6 +711,84 @@ def activitySpace(user,userplaces,track, outletdata):
      saveOutlets([[candidateids[i],candidates[i],candidatecats[i]] for i,v in enumerate(candidates)], save=os.path.join(newpath,"aSpaceSHOP.shp"))
 
 
+def loadRecords(recordedevents, usersample):
+    ev = pd.read_csv(recordedevents, sep=';', parse_dates=True, date_parser=dateparse,  encoding="utf-8-sig")
+
+        #print tr.keys()
+    users= pd.read_csv(usersample, sep=';', parse_dates=True, date_parser=dateparse,  encoding="utf-8-sig")
+    #print users['include']
+    validids = users[users['include']==True]
+    #print validids.keys()
+    #print validids
+    out = []
+
+    for index, row in validids.iterrows():
+        #print row
+        id = row['DeviceID']
+        ti1 = datetime.strptime(row[u'START DATE'],'%Y-%m-%d')
+        ti2 = datetime.strptime(row['END DATE ']+'T23:59:00','%Y-%m-%dT%H:%M:%S')
+        print 'user: ',id, ti1, ti2
+        userevents =ev[ev['DEVICECODE']== id ] #and
+        userevents =userevents[userevents['Start date'].apply(lambda x: dateparse2(x) >=ti1 and dateparse2(x) <=ti2)]
+        out.append(userevents)
+        break
+
+    #ti1 = datetime.strptime("2016-10-25T12:00:00",'%Y-%m-%dT%H:%M:%S')
+    #ti2 =  datetime.strptime("2016-10-30T23:50:00",'%Y-%m-%dT%H:%M:%S')
+    #tr = tr[tr['startTime'].apply(lambda x: dateparse(x) >=ti1 and dateparse(x) <=ti2)]
+    #tr = list(tr.groupby('deviceId'))
+    print 'number of users with records loaded: '+ str(len(out))
+    #print (validids)
+    return out
+
+def checkRecEvent(userplaces, mod1, pt1, pp1, pos, start, end, mod2, st2, sp2):
+
+    maxeventduration = (st2 -  pt1 ).total_seconds()
+    if pp1 in userplaces.keys() and sp2 in userplaces.keys() : #Places available in place set?
+        if (st2 <= start <=end<=  pt1): #Event within stoptime?
+            if mod1 == mod2:
+                print "Checking rec event successful!"
+                print Point(pos)
+                print pp1['geo']
+
+
+
+#Handle recorded events
+def constructRecordedEvents(trips,places,outletdata,recordedevents):
+     for index, evs in enumerate(recordedevents):
+        #print evs
+        user = str(int(evs['DEVICECODE'].iloc[0]))
+        print user
+        userplaces = places[user]
+        #generating simple methods first:
+        #activitySpace(user,userplaces,track, outletdata)
+        #homeBuffer(user,userplaces, outletdata,'Bike')
+        #activityMap(user, userplaces)
+        store = os.path.join(results,str(user)+"Recevents.json")
+        t = trips[index]
+        print str(t['deviceId'].iloc[0]) ==user
+        dump = {}
+        eventnr = 0
+        print str(len(evs))+ ' recorded food events for this user in total!'
+        for index, row in evs.iterrows():
+            if row['type of outlet of purchase'] != 'NaN' and row['LOCATIE'].split(';')[0] != '999':
+                cat = row['type of outlet of purchase']
+                pos = row['LOCATIE'].split(';')[0]
+                start =dateparse2(row['Start date'])
+                end = dateparse2(row['End date'])
+                print cat,pos,start,end
+                lastrow = pd.Series()
+                for index,row in t.iterrows():
+                    if not lastrow.empty:
+                        mod1, st1, sp1, pt1, pp1 =  getTripInfo(lastrow)
+                        mod2, st2, sp2, pt2, pp2 =  getTripInfo(row)
+                        checkRecEvent(userplaces, mod1, pt1, pp1, pos, start, end, mod2, st2, sp2)
+                    lastrow = row
+
+
+        break
+
+
 
 
 
@@ -716,14 +797,19 @@ def activitySpace(user,userplaces,track, outletdata):
 results = r"C:\Users\schei008\surfdrive\Temp\FoodResults"
 def main():
       #print  getActivityLabels(r"C:\Users\schei008\Dropbox\Schriften\Exchange\GOF\foodtracker\places.csv")
-    outletdata = loadOutlets()
+    outletdata = ''#loadOutlets()
     places =r"C:\Users\schei008\Dropbox\Schriften\Exchange\GOF\foodtracker\places.csv"
     trips = r"C:\Users\schei008\Dropbox\Schriften\Exchange\GOF\foodtracker\trips.csv"
     usersample =r"C:\Users\schei008\Dropbox\Schriften\Exchange\GOF\foodtracker\Simon_start_stop_date_per_device_ID_cleaned.csv"
+    recordedevents =r"C:\Users\schei008\Dropbox\Schriften\Exchange\GOF\foodtracker\SIMON_PURCHASES_INCOMPLETE_FILE.csv"
 
     pl = loadPlaces(places)
     tr = loadTrips(trips,usersample)
-    constructEvents(tr,pl,outletdata,tripeventsOn=True)
+    ev = loadRecords(recordedevents,usersample)
+    #constructEvents(tr,pl,outletdata,tripeventsOn=True)
+
+    constructRecordedEvents(tr,pl,outletdata,ev)
+
 
 
 
