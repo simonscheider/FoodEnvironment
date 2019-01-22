@@ -730,6 +730,11 @@ def loadRecords(recordedevents, usersample):
         print 'user: ',id, ti1, ti2
         userevents =ev[ev['DEVICECODE']== id ] #and
         userevents =userevents[userevents['Start date'].apply(lambda x: dateparse2(x) >=ti1 and dateparse2(x) <=ti2)]
+        userevents = userevents[['VoterID','Start date','End date', 'DEVICECODE','type of outlet of purchase', 'LOCATIE']].drop_duplicates()
+
+        #userevents = userevents.groupby(['VoterID', 'Start date','End date', 'DEVICECODE', 'type of outlet of purchase', 'LOCATIE'])["purchased products "].sum()
+        print list(userevents)
+
         out.append(userevents)
         break
 
@@ -744,14 +749,31 @@ def loadRecords(recordedevents, usersample):
 def checkRecEvent(userplaces, mod1, pt1, pp1, pos, start, end, mod2, st2, sp2):
 
     maxeventduration = (st2 -  pt1 ).total_seconds()
+    eventduration = (end - start).total_seconds()
     if pp1 in userplaces.keys() and sp2 in userplaces.keys() : #Places available in place set?
-        if (st2 <= start <=end<=  pt1): #Event within stoptime?
+        if (pt1-timedelta(seconds=600) <= start <=end<= st2+timedelta(seconds=600) ): #Event within stoppingtime, allowing for a ten minutes tolerance interval?
             if mod1 == mod2:
-                print "Checking rec event successful!"
-                print Point(pos)
-                print pp1['geo']
+                if eventduration*3>maxeventduration:
+                    #print 'event duration: '+str(eventduration)
+                    #print 'max event duration: '+str(maxeventduration)
+                    ep = transform(project,loads(pos))
+                    tp1 = transform(project,userplaces[pp1]['geo'])
+                    tp2 = transform(project,userplaces[sp2]['geo'])
+                    if ep.distance(tp1) < 500:
+                         print "Checking rec event successful!"
 
+                    #print "distance 1:" +str(ep.distance(tp1))
 
+def checkRecBorderEvent(userplaces, mod1, pt1, pp1, pos, start, end, mod2, st2, sp2):
+    maxeventduration = (st2 -  pt1 ).total_seconds()
+    eventduration = (end - start).total_seconds()
+    if pp1 in userplaces.keys() and sp2 in userplaces.keys() : #Places available in place set?
+        if (pt1 <= start <=end<= st2): #Event within stoppingtime?
+            borderint1 = (start -  pt1).total_seconds()
+            borderint2 =  (st2 - end).total_seconds()
+            if mod1 == mod2:
+
+                         print "Checking rec border event successful!"
 
 #Handle recorded events
 def constructRecordedEvents(trips,places,outletdata,recordedevents):
@@ -772,18 +794,45 @@ def constructRecordedEvents(trips,places,outletdata,recordedevents):
         print str(len(evs))+ ' recorded food events for this user in total!'
         for index, row in evs.iterrows():
             if row['type of outlet of purchase'] != 'NaN' and row['LOCATIE'].split(';')[0] != '999':
-                cat = row['type of outlet of purchase']
+                category = row['type of outlet of purchase']
+                if category== 'Supermarkt': #Shop outlets
+                                sidx,ids, outlets,cat = outletdata[4],outletdata[5],outletdata[6],outletdata[7]
+                                print 'simulated SHOP  event'
+                else:               #Horeca outlets
+                                sidx,ids, outlets, cat = outletdata[0],outletdata[1],outletdata[2],outletdata[3]
+                                print 'simulated HORECA event'
                 pos = row['LOCATIE'].split(';')[0]
+                label =row['LOCATIE'].split(';')[1]
+                posss = {'geo':pos, 'label':label}
                 start =dateparse2(row['Start date'])
                 end = dateparse2(row['End date'])
+                eventduration = (end - start).total_seconds()
                 print cat,pos,start,end
                 lastrow = pd.Series()
                 for index,row in t.iterrows():
                     if not lastrow.empty:
                         mod1, st1, sp1, pt1, pp1 =  getTripInfo(lastrow)
                         mod2, st2, sp2, pt2, pp2 =  getTripInfo(row)
-                        checkRecEvent(userplaces, mod1, pt1, pp1, pos, start, end, mod2, st2, sp2)
+
+                        if checkRecEvent(userplaces, mod1, pt1, pp1, pos, start, end, mod2, st2, sp2):
+                            fe = FlexEvent(user,mod1, st1, userplaces[sp1], pt1, poss, mod2, st2, pt2, userplaces[pp2])
+                            eventnr +=1
+                            fe.map(eventnr)
+                            dump[eventnr]=fe.serialize()
+                            getAffordances(user, eventnr, userplaces[sp1]['geo'], st1, mod1, userplaces[pp2]['geo'], pt2, mod2, int(float(eventduration)), sidx,ids, outlets, cat)
+
+                        if checkRecBorderEvent(userplaces, mod1, pt1, pp1, pos, start, end, mod2, st2, sp2):
+                            fe = FlexEvent(user,mod1, start-timedelta(seconds=1800), userplaces[pp1], start, poss, mod2, stop, stop+timedelta(seconds=1800), userplaces[sp2])
+                            eventnr +=1
+                            fe.map(eventnr)
+                            dump[eventnr]=fe.serialize()
+                            getAffordances(user, eventnr, userplaces[pp1]['geo'], start-timedelta(seconds=1800), mod1, poss, stop+timedelta(seconds=1800), mod2, int(float(eventduration)), sidx,ids, outlets, cat)
+
                     lastrow = row
+        print str(len(dump.keys()))+' flexible events detected for user ' + str(user)
+        with open(store, 'w') as fp:
+            json.dump(dump, fp)
+        fp.close
 
 
         break
@@ -797,7 +846,7 @@ def constructRecordedEvents(trips,places,outletdata,recordedevents):
 results = r"C:\Users\schei008\surfdrive\Temp\FoodResults"
 def main():
       #print  getActivityLabels(r"C:\Users\schei008\Dropbox\Schriften\Exchange\GOF\foodtracker\places.csv")
-    outletdata = ''#loadOutlets()
+    outletdata = loadOutlets()
     places =r"C:\Users\schei008\Dropbox\Schriften\Exchange\GOF\foodtracker\places.csv"
     trips = r"C:\Users\schei008\Dropbox\Schriften\Exchange\GOF\foodtracker\trips.csv"
     usersample =r"C:\Users\schei008\Dropbox\Schriften\Exchange\GOF\foodtracker\Simon_start_stop_date_per_device_ID_cleaned.csv"
