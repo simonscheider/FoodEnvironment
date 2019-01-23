@@ -320,7 +320,7 @@ def generate_index(records, index_path=None):
 
 #This class captures modifiable food events consisting of: travel - food activity - travel
 class FlexEvent():
-    def __init__(self, user, mod1, st1, sp1, pt1, pp1, mod2, st2, pt2, pp2):
+    def __init__(self, user, category, mod1, st1, sp1, pt1, pp1, mod2, st2, pt2, pp2):
          self.user = user
          self.mod1 =mod1
          self.st1 = st1
@@ -332,7 +332,8 @@ class FlexEvent():
          self.pt2 =pt2
          self.pp2 =pp2
          self.eventduration = (self.st2 -  self.pt1 ).total_seconds()
-         self.category = (self.pp1['label']).split(':')[0]
+         self.category = category #(self.pp1['label']).split(':')[0]
+         print "Event: "+str(st1) +" "+ str(pt1) +" "+  str(st2)  +" "+ str(pt2)
 
     def serialize(self):
         return {
@@ -449,9 +450,9 @@ def constructEvents(trips, places, outletdata, tripeventsOn):
             if not lastrow.empty:
                 mod1, st1, sp1, pt1, pp1 =  getTripInfo(lastrow)
                 mod2, st2, sp2, pt2, pp2 =  getTripInfo(row)
+                category = (userplaces[pp1]['label']).split(':')[0]
                 if flexibleEvent(userplaces,mod1, st1, sp1, pt1, pp1, mod2, st2, sp2, pt2, pp2):
-                      fe = FlexEvent(user,mod1, st1, userplaces[sp1], pt1, userplaces[pp1], mod2, st2, pt2, userplaces[pp2])
-                      category = (userplaces[pp1]['label']).split(':')[0]
+                      fe = FlexEvent(user,category, mod1, st1, userplaces[sp1], pt1, userplaces[pp1], mod2, st2, pt2, userplaces[pp2])
                       if category.split('_')[0]== 'FOOD': #Horeca outlets
                         sidx,ids, outlets, cat = outletdata[0],outletdata[1],outletdata[2],outletdata[3]
                         print 'simulated HORECA event'
@@ -747,33 +748,37 @@ def loadRecords(recordedevents, usersample):
     return out
 
 def checkRecEvent(userplaces, mod1, pt1, pp1, pos, start, end, mod2, st2, sp2):
-
     maxeventduration = (st2 -  pt1 ).total_seconds()
     eventduration = (end - start).total_seconds()
+    out = False
     if pp1 in userplaces.keys() and sp2 in userplaces.keys() : #Places available in place set?
-        if (pt1-timedelta(seconds=600) <= start <=end<= st2+timedelta(seconds=600) ): #Event within stoppingtime, allowing for a ten minutes tolerance interval?
+        if (pt1-timedelta(seconds=300) <= start <=end<= st2+timedelta(seconds=300) ): #Event within stoppingtime, allowing for a five minutes tolerance interval?
             if mod1 == mod2:
-                if eventduration*3>maxeventduration:
+                if eventduration*3>+maxeventduration:
                     #print 'event duration: '+str(eventduration)
                     #print 'max event duration: '+str(maxeventduration)
                     ep = transform(project,loads(pos))
                     tp1 = transform(project,userplaces[pp1]['geo'])
                     tp2 = transform(project,userplaces[sp2]['geo'])
-                    if ep.distance(tp1) < 500:
+                    if ep.distance(tp1) < 500 or ep.distance(tp2)<=500 :
                          print "Checking rec event successful!"
-
+                         out = True
+    return out
                     #print "distance 1:" +str(ep.distance(tp1))
 
 def checkRecBorderEvent(userplaces, mod1, pt1, pp1, pos, start, end, mod2, st2, sp2):
     maxeventduration = (st2 -  pt1 ).total_seconds()
     eventduration = (end - start).total_seconds()
+    out = False
     if pp1 in userplaces.keys() and sp2 in userplaces.keys() : #Places available in place set?
         if (pt1 <= start <=end<= st2): #Event within stoppingtime?
-            borderint1 = (start -  pt1).total_seconds()
-            borderint2 =  (st2 - end).total_seconds()
-            if mod1 == mod2:
-
-                         print "Checking rec border event successful!"
+            #borderint1 = (start -  pt1).total_seconds()
+            #borderint2 =  (st2 - end).total_seconds()
+            #if mod1 == mod2:
+            print "Checking rec border event successful!"
+            print pt1, start, end, st2
+            out = True
+    return out
 
 #Handle recorded events
 def constructRecordedEvents(trips,places,outletdata,recordedevents):
@@ -783,9 +788,9 @@ def constructRecordedEvents(trips,places,outletdata,recordedevents):
         print user
         userplaces = places[user]
         #generating simple methods first:
-        #activitySpace(user,userplaces,track, outletdata)
-        #homeBuffer(user,userplaces, outletdata,'Bike')
-        #activityMap(user, userplaces)
+        activitySpace(user,userplaces,track, outletdata)
+        homeBuffer(user,userplaces, outletdata,'Bike')
+        activityMap(user, userplaces)
         store = os.path.join(results,str(user)+"Recevents.json")
         t = trips[index]
         print str(t['deviceId'].iloc[0]) ==user
@@ -797,17 +802,17 @@ def constructRecordedEvents(trips,places,outletdata,recordedevents):
                 category = row['type of outlet of purchase']
                 if category== 'Supermarkt': #Shop outlets
                                 sidx,ids, outlets,cat = outletdata[4],outletdata[5],outletdata[6],outletdata[7]
-                                print 'simulated SHOP  event'
+                                print 'SHOP  event'
                 else:               #Horeca outlets
                                 sidx,ids, outlets, cat = outletdata[0],outletdata[1],outletdata[2],outletdata[3]
-                                print 'simulated HORECA event'
+                                print 'HORECA event'
                 pos = row['LOCATIE'].split(';')[0]
                 label =row['LOCATIE'].split(';')[1]
-                posss = {'geo':pos, 'label':label}
+                poss = {'geo':loads(pos), 'label':label}
                 start =dateparse2(row['Start date'])
                 end = dateparse2(row['End date'])
                 eventduration = (end - start).total_seconds()
-                print cat,pos,start,end
+                print category,pos,start,end
                 lastrow = pd.Series()
                 for index,row in t.iterrows():
                     if not lastrow.empty:
@@ -815,18 +820,18 @@ def constructRecordedEvents(trips,places,outletdata,recordedevents):
                         mod2, st2, sp2, pt2, pp2 =  getTripInfo(row)
 
                         if checkRecEvent(userplaces, mod1, pt1, pp1, pos, start, end, mod2, st2, sp2):
-                            fe = FlexEvent(user,mod1, st1, userplaces[sp1], pt1, poss, mod2, st2, pt2, userplaces[pp2])
+                            fe = FlexEvent(user,category,mod1, st1, userplaces[sp1], pt1, poss, mod2, st2, pt2, userplaces[pp2])
                             eventnr +=1
                             fe.map(eventnr)
                             dump[eventnr]=fe.serialize()
                             getAffordances(user, eventnr, userplaces[sp1]['geo'], st1, mod1, userplaces[pp2]['geo'], pt2, mod2, int(float(eventduration)), sidx,ids, outlets, cat)
 
-                        if checkRecBorderEvent(userplaces, mod1, pt1, pp1, pos, start, end, mod2, st2, sp2):
-                            fe = FlexEvent(user,mod1, start-timedelta(seconds=1800), userplaces[pp1], start, poss, mod2, stop, stop+timedelta(seconds=1800), userplaces[sp2])
+                        elif checkRecBorderEvent(userplaces, mod1, pt1, pp1, pos, start, end, mod2, st2, sp2):
+                            fe = FlexEvent(user,category,mod1, start-timedelta(seconds=1800), userplaces[pp1], start, poss, mod2, end, end+timedelta(seconds=1800), userplaces[sp2])
                             eventnr +=1
                             fe.map(eventnr)
                             dump[eventnr]=fe.serialize()
-                            getAffordances(user, eventnr, userplaces[pp1]['geo'], start-timedelta(seconds=1800), mod1, poss, stop+timedelta(seconds=1800), mod2, int(float(eventduration)), sidx,ids, outlets, cat)
+                            getAffordances(user, eventnr, userplaces[pp1]['geo'], start-timedelta(seconds=1800), mod1, poss['geo'], end+timedelta(seconds=1800), mod2, int(float(eventduration)), sidx,ids, outlets, cat)
 
                     lastrow = row
         print str(len(dump.keys()))+' flexible events detected for user ' + str(user)
@@ -856,7 +861,6 @@ def main():
     tr = loadTrips(trips,usersample)
     ev = loadRecords(recordedevents,usersample)
     #constructEvents(tr,pl,outletdata,tripeventsOn=True)
-
     constructRecordedEvents(tr,pl,outletdata,ev)
 
 
