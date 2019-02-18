@@ -747,6 +747,7 @@ def loadRecords(recordedevents, usersample):
     #print (validids)
     return out
 
+"""This function checks whether recorded event is within two consecutive framing trips based on space and time"""
 def checkRecEvent(userplaces, mod1, pt1, pp1, pos, start, end, mod2, st2, sp2):
     maxeventduration = (st2 -  pt1 ).total_seconds()
     eventduration = (end - start).total_seconds()
@@ -754,18 +755,19 @@ def checkRecEvent(userplaces, mod1, pt1, pp1, pos, start, end, mod2, st2, sp2):
     if pp1 in userplaces.keys() and sp2 in userplaces.keys() : #Places available in place set?
         if (pt1-timedelta(seconds=300) <= start <=end<= st2+timedelta(seconds=300) ): #Event within stoppingtime, allowing for a five minutes tolerance interval?
             if mod1 == mod2:
-                if eventduration*3>+maxeventduration:
+                if eventduration*3>=maxeventduration: #Stoppingtime not too large for eventime (excluding e.g. overnight stops)
                     #print 'event duration: '+str(eventduration)
                     #print 'max event duration: '+str(maxeventduration)
                     ep = transform(project,loads(pos))
                     tp1 = transform(project,userplaces[pp1]['geo'])
                     tp2 = transform(project,userplaces[sp2]['geo'])
-                    if ep.distance(tp1) < 500 or ep.distance(tp2)<=500 :
+                    if ep.distance(tp1) < 500 or ep.distance(tp2)<=500 : #Test whether stopplaces and eventplace is within 500 meters
                          print "Checking rec event successful!"
                          out = True
     return out
                     #print "distance 1:" +str(ep.distance(tp1))
 
+"""This function checks whether recorded event is within two consecutive framing stops only based on stoppingtime"""
 def checkRecBorderEvent(userplaces, mod1, pt1, pp1, pos, start, end, mod2, st2, sp2):
     maxeventduration = (st2 -  pt1 ).total_seconds()
     eventduration = (end - start).total_seconds()
