@@ -349,7 +349,7 @@ class FlexEvent():
          'stoptime2':str(self.pt2),
          'stopplace2':{'label':self.pp2['label'], 'geo':str(self.pp2['geo'])}},
          'eventduration':str(self.eventduration),
-         'category':str(self.category)
+         'category':(self.category).encode('utf-8').strip()
         }
     def map(self, id):
         newpath=os.path.join(results,str(self.user))
@@ -598,7 +598,14 @@ def loadPlaces(places):
 def dateparse (timestamp):
         return pd.datetime.strptime(timestamp, '%Y-%m-%d %H:%M:%S.%f')
 def dateparse2 (timestamp):
-    return pd.datetime.strptime(timestamp, '%d-%m-%Y %H:%M')
+    if isinstance(timestamp,basestring):
+        return pd.datetime.strptime(timestamp, '%d-%m-%Y %H:%M')
+    else:
+        return timestamp
+def dateparse3 (date, time):
+    #'26-apr-18 12:35'
+    date = date.replace('mei', 'may')
+    return pd.datetime.strptime(date +' '+time, '%d-%b-%y %H:%M')
 
 
 def loadTrips(trips, usersample):
@@ -615,7 +622,7 @@ def loadTrips(trips, usersample):
     validids = users[users['include']==True]
     #print validids.keys()
     #print validids
-    out = []
+    out = {}
 
     for index, row in validids.iterrows():
         #print row
@@ -625,15 +632,15 @@ def loadTrips(trips, usersample):
         print 'user: ',id, ti1, ti2
         usertrack =tr[tr['deviceId']== id ] #and
         usertrack =usertrack[usertrack['startTime'].apply(lambda x: dateparse(x) >=ti1 and dateparse(x) <=ti2)]
-        out.append(usertrack)
+        out[str(int(id))]=usertrack
         break
 
     #ti1 = datetime.strptime("2016-10-25T12:00:00",'%Y-%m-%dT%H:%M:%S')
     #ti2 =  datetime.strptime("2016-10-30T23:50:00",'%Y-%m-%dT%H:%M:%S')
     #tr = tr[tr['startTime'].apply(lambda x: dateparse(x) >=ti1 and dateparse(x) <=ti2)]
     #tr = list(tr.groupby('deviceId'))
-    print 'number of users loaded: '+ str(len(out))
-    #print (validids)
+    print 'number of users loaded: '+ str(len(out.keys()))
+    print out.keys()
     return out
 
 
@@ -728,13 +735,20 @@ def loadRecords(recordedevents, usersample):
         id = row['DeviceID']
         ti1 = datetime.strptime(row[u'START DATE'],'%Y-%m-%d')
         ti2 = datetime.strptime(row['END DATE ']+'T23:59:00','%Y-%m-%dT%H:%M:%S')
-        print 'user: ',id, ti1, ti2
+        #print 'user: ',id, ti1, ti2
         userevents =ev[ev['DEVICECODE']== id ] #and
-        userevents =userevents[userevents['Start date'].apply(lambda x: dateparse2(x) >=ti1 and dateparse2(x) <=ti2)]
-        userevents = userevents[['VoterID','Start date','End date', 'DEVICECODE','type of outlet of purchase', 'LOCATIE']].drop_duplicates()
+        #userevents =userevents[userevents['Start date'].apply(lambda x: dateparse2(x) >=ti1 and dateparse2(x) <=ti2)]
+        #userevents = userevents[['VoterID','Start date','End date', 'DEVICECODE','type of outlet of purchase', 'LOCATIE']].drop_duplicates()
+        userevents = userevents[['VoterID','date_of_purchase', 'time_of_purchase', 'DEVICECODE','WAAR', 'Locatie']].drop_duplicates()
 
+        userevents['Start date'] = userevents.apply (lambda row: dateparse3(row['date_of_purchase'], row['time_of_purchase']), axis=1)
+        userevents =userevents[userevents['Start date'].apply(lambda x: x >=ti1 and x <=ti2)]
+        userevents['End date'] =  userevents.apply(lambda row: row['Start date']+timedelta(seconds=300), axis=1)
+        userevents['type of outlet of purchase'] = userevents.apply(lambda row: row['WAAR'], axis=1)
+        userevents['LOCATIE'] = userevents.apply(lambda row: row['Locatie'], axis=1)
+        userevents = userevents[['VoterID','Start date','End date', 'DEVICECODE','type of outlet of purchase', 'LOCATIE']]
         #userevents = userevents.groupby(['VoterID', 'Start date','End date', 'DEVICECODE', 'type of outlet of purchase', 'LOCATIE'])["purchased products "].sum()
-        print list(userevents)
+        print (userevents)
 
         out.append(userevents)
         break
@@ -748,26 +762,27 @@ def loadRecords(recordedevents, usersample):
     return out
 
 """This function checks whether recorded event is within two consecutive framing trips based on space and time"""
-def checkRecEvent(userplaces, mod1, pt1, pp1, pos, start, end, mod2, st2, sp2):
+def checkRecEvent(userplaces, mod1, sp1, pt1, pp1, pos, start, end, mod2, st2, pp2):
     maxeventduration = (st2 -  pt1 ).total_seconds()
     eventduration = (end - start).total_seconds()
     out = False
-    if pp1 in userplaces.keys() and sp2 in userplaces.keys() : #Places available in place set?
+    if sp1 in userplaces.keys() and pp2 in userplaces.keys() : #Places available in place set?
         if (pt1-timedelta(seconds=300) <= start <=end<= st2+timedelta(seconds=300) ): #Event within stoppingtime, allowing for a five minutes tolerance interval?
-            if mod1 == mod2:
+            #if mod1 == mod2:
                 if eventduration*3>=maxeventduration: #Stoppingtime not too large for eventime (excluding e.g. overnight stops)
                     #print 'event duration: '+str(eventduration)
                     #print 'max event duration: '+str(maxeventduration)
-                    ep = transform(project,loads(pos))
-                    tp1 = transform(project,userplaces[pp1]['geo'])
-                    tp2 = transform(project,userplaces[sp2]['geo'])
-                    if ep.distance(tp1) < 500 or ep.distance(tp2)<=500 : #Test whether stopplaces and eventplace is within 500 meters
-                         print "Checking rec event successful!"
-                         out = True
+                        #ep = transform(project,loads(pos))
+                        #tp1 = transform(project,userplaces[pp1]['geo'])
+                        #tp2 = transform(project,userplaces[sp2]['geo'])
+                        #if ep.distance(tp1) < 500 or ep.distance(tp2)<=500 : #Test whether stopplaces and eventplace is within 500 meters
+                        print "Checking rec event successful!"
+                        out = True
+
     return out
                     #print "distance 1:" +str(ep.distance(tp1))
 
-"""This function checks whether recorded event is within two consecutive framing stops only based on stoppingtime"""
+"""This function checks whether recorded event is within two consecutive framing trips only based on stoppingtime"""
 def checkRecBorderEvent(userplaces, mod1, pt1, pp1, pos, start, end, mod2, st2, sp2):
     maxeventduration = (st2 -  pt1 ).total_seconds()
     eventduration = (end - start).total_seconds()
@@ -782,6 +797,16 @@ def checkRecBorderEvent(userplaces, mod1, pt1, pp1, pos, start, end, mod2, st2, 
             out = True
     return out
 
+def checkWithinTripEvent(userplaces, mod1, st1, sp1, start, end, pt1, pp1):
+    out = False
+    if sp1 in userplaces.keys() and pp1 in userplaces.keys() : #Places available in place set?
+        if (st1 <= start <=end<= pt1): #Event within stoppingtime?
+            print "Checking Within trip event successful!"
+            print mod1, st1, sp1, start, end, pt1, pp1
+            out = True
+    return out
+
+
 #Handle recorded events
 def constructRecordedEvents(trips,places,outletdata,recordedevents):
      for index, evs in enumerate(recordedevents):
@@ -790,52 +815,64 @@ def constructRecordedEvents(trips,places,outletdata,recordedevents):
         print user
         userplaces = places[user]
         #generating simple methods first:
-        activitySpace(user,userplaces,track, outletdata)
+        store = os.path.join(results,str(user)+"Recevents.json")
+        t = trips[user]
+        activitySpace(user,userplaces,t, outletdata)
         homeBuffer(user,userplaces, outletdata,'Bike')
         activityMap(user, userplaces)
-        store = os.path.join(results,str(user)+"Recevents.json")
-        t = trips[index]
         print str(t['deviceId'].iloc[0]) ==user
         dump = {}
         eventnr = 0
         print str(len(evs))+ ' recorded food events for this user in total!'
         for index, row in evs.iterrows():
-            if row['type of outlet of purchase'] != 'NaN' and row['LOCATIE'].split(';')[0] != '999':
-                category = row['type of outlet of purchase']
-                if category== 'Supermarkt': #Shop outlets
-                                sidx,ids, outlets,cat = outletdata[4],outletdata[5],outletdata[6],outletdata[7]
-                                print 'SHOP  event'
-                else:               #Horeca outlets
-                                sidx,ids, outlets, cat = outletdata[0],outletdata[1],outletdata[2],outletdata[3]
-                                print 'HORECA event'
-                pos = row['LOCATIE'].split(';')[0]
-                label =row['LOCATIE'].split(';')[1]
-                poss = {'geo':loads(pos), 'label':label}
-                start =dateparse2(row['Start date'])
-                end = dateparse2(row['End date'])
-                eventduration = (end - start).total_seconds()
-                print category,pos,start,end
-                lastrow = pd.Series()
-                for index,row in t.iterrows():
-                    if not lastrow.empty:
-                        mod1, st1, sp1, pt1, pp1 =  getTripInfo(lastrow)
-                        mod2, st2, sp2, pt2, pp2 =  getTripInfo(row)
+            if row['type of outlet of purchase'] != np.nan:
+                #if row['LOCATIE'].split(';')[0] != '999':
+                    category = row['type of outlet of purchase'].strip()
+                    if category== 'Supermarkt': #Shop outlets
+                                    sidx,ids, outlets,cat = outletdata[4],outletdata[5],outletdata[6],outletdata[7]
+                                    print 'SHOP  event'
+                    else:               #Horeca outlets
+                                    sidx,ids, outlets, cat = outletdata[0],outletdata[1],outletdata[2],outletdata[3]
+                                    print 'HORECA event'
+                    print type(row['LOCATIE'])
+                    purchaseloc = False
+                    if isinstance(row['LOCATIE'],basestring)  and row['LOCATIE']!= '999' and ';' in row['LOCATIE']:
+                        pos = row['LOCATIE'].split(';')[0]
+                        label =row['LOCATIE'].split(';')[1]
+                        poss = {'geo':loads(pos), 'label':label}
+                        purchaseloc = True
 
-                        if checkRecEvent(userplaces, mod1, pt1, pp1, pos, start, end, mod2, st2, sp2):
-                            fe = FlexEvent(user,category,mod1, st1, userplaces[sp1], pt1, poss, mod2, st2, pt2, userplaces[pp2])
-                            eventnr +=1
-                            fe.map(eventnr)
-                            dump[eventnr]=fe.serialize()
-                            getAffordances(user, eventnr, userplaces[sp1]['geo'], st1, mod1, userplaces[pp2]['geo'], pt2, mod2, int(float(eventduration)), sidx,ids, outlets, cat)
+                    start =dateparse2(row['Start date'])
+                    end = dateparse2(row['End date'])
+                    eventduration = (end - start).total_seconds()
+                    print category,start,end
+                    lastrow = pd.Series()
+                    #print t.iloc[0]
+                    for index,row in t.iterrows():
+                        if not lastrow.empty:
+                            mod1, st1, sp1, pt1, pp1 =  getTripInfo(lastrow)
+                            mod2, st2, sp2, pt2, pp2 =  getTripInfo(row)
+                            #print lastrow
+                            if not purchaseloc and pp1 in userplaces.keys(): #If location of purchase is not available
+                                poss = userplaces[pp1]
+                                pos = userplaces[pp1]['geo'].wkt
+                            if checkRecEvent(userplaces, mod1, sp1, pt1, pp1, pos, start, end, mod2, st2, pp2):
+                                fe = FlexEvent(user,category,mod1, st1, userplaces[sp1], pt1, poss, mod2, st2, pt2, userplaces[pp2])
+                                eventnr +=1
+                                fe.map(eventnr)
+                                dump[eventnr]=fe.serialize()
+                                getAffordances(user, eventnr, userplaces[sp1]['geo'], st1, mod1, userplaces[pp2]['geo'], pt2, mod2, int(float(eventduration)), sidx,ids, outlets, cat)
 
-                        elif checkRecBorderEvent(userplaces, mod1, pt1, pp1, pos, start, end, mod2, st2, sp2):
-                            fe = FlexEvent(user,category,mod1, start-timedelta(seconds=1800), userplaces[pp1], start, poss, mod2, end, end+timedelta(seconds=1800), userplaces[sp2])
-                            eventnr +=1
-                            fe.map(eventnr)
-                            dump[eventnr]=fe.serialize()
-                            getAffordances(user, eventnr, userplaces[pp1]['geo'], start-timedelta(seconds=1800), mod1, poss['geo'], end+timedelta(seconds=1800), mod2, int(float(eventduration)), sidx,ids, outlets, cat)
+                            elif checkWithinTripEvent(userplaces, mod1, st1, sp1, start, end, pt1, pp1):
+                                pass
+                            elif checkRecBorderEvent(userplaces, mod1, pt1, pp1, pos, start, end, mod2, st2, sp2):
+                                fe = FlexEvent(user,category,mod1, start-timedelta(seconds=1800), userplaces[pp1], start, poss, mod2, end, end+timedelta(seconds=1800), userplaces[sp2])
+                                eventnr +=1
+                                fe.map(eventnr)
+                                dump[eventnr]=fe.serialize()
+                                getAffordances(user, eventnr, userplaces[pp1]['geo'], start-timedelta(seconds=1800), mod1, poss['geo'], end+timedelta(seconds=1800), mod2, int(float(eventduration)), sidx,ids, outlets, cat)
 
-                    lastrow = row
+                        lastrow = row
         print str(len(dump.keys()))+' flexible events detected for user ' + str(user)
         with open(store, 'w') as fp:
             json.dump(dump, fp)
@@ -857,7 +894,8 @@ def main():
     places =r"C:\Users\schei008\Dropbox\Schriften\Exchange\GOF\foodtracker\places.csv"
     trips = r"C:\Users\schei008\Dropbox\Schriften\Exchange\GOF\foodtracker\trips.csv"
     usersample =r"C:\Users\schei008\Dropbox\Schriften\Exchange\GOF\foodtracker\Simon_start_stop_date_per_device_ID_cleaned.csv"
-    recordedevents =r"C:\Users\schei008\Dropbox\Schriften\Exchange\GOF\foodtracker\SIMON_PURCHASES_INCOMPLETE_FILE.csv"
+    #recordedevents =r"C:\Users\schei008\Dropbox\Schriften\Exchange\GOF\foodtracker\SIMON_PURCHASES_INCOMPLETE_FILE.csv"
+    recordedevents =r"C:\Users\schei008\Dropbox\Schriften\Exchange\GOF\foodtracker\Purchases_total_inclTime_Simon.csv" # events with true purchase times
 
     pl = loadPlaces(places)
     tr = loadTrips(trips,usersample)

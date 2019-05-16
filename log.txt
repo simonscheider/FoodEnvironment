@@ -1,0 +1,174 @@
+Loading outlets!
+user:  28185.0 2018-04-26 00:00:00 2018-05-02 23:59:00
+number of users loaded: 1
+    VoterID          Start date            End date  DEVICECODE  \
+0       464 2018-04-26 12:35:00 2018-04-26 12:40:00     28185.0   
+1       465 2018-04-26 12:15:00 2018-04-26 12:20:00     28185.0   
+5       466 2018-04-27 13:30:00 2018-04-27 13:35:00     28185.0   
+6       467 2018-04-28 11:00:00 2018-04-28 11:05:00     28185.0   
+7       468 2018-04-28 18:35:00 2018-04-28 18:40:00     28185.0   
+10      469 2018-04-28 20:25:00 2018-04-28 20:30:00     28185.0   
+15      470 2018-04-30 18:10:00 2018-04-30 18:15:00     28185.0   
+27      471 2018-05-01 08:20:00 2018-05-01 08:25:00     28185.0   
+28      472 2018-05-01 15:30:00 2018-05-01 15:35:00     28185.0   
+30      473 2018-04-30 08:55:00 2018-04-30 09:00:00     28185.0   
+31      474 2018-05-01 18:25:00 2018-05-01 18:30:00     28185.0   
+32      475 2018-05-02 11:05:00 2018-05-02 11:10:00     28185.0   
+33      476 2018-04-30 13:10:00 2018-04-30 13:15:00     28185.0   
+34      477 2018-05-02 17:15:00 2018-05-02 17:20:00     28185.0   
+
+            type of outlet of purchase  \
+0                           Supermarkt   
+1                           Supermarkt   
+5                     Kiosk/ Foodtruck   
+6                     Restaurant/ café   
+7                     Kiosk/ Foodtruck   
+10                          Supermarkt   
+15                          Supermarkt   
+27             Koffiecorner/ lunchroom   
+28                          Supermarkt   
+30             Koffiecorner/ lunchroom   
+31                    Kiosk/ Foodtruck   
+32  Bedrijfsrestaurant/ (sport)kantine   
+33  Bedrijfsrestaurant/ (sport)kantine   
+34                          Supermarkt   
+
+                                              LOCATIE  
+0                                                 NaN  
+1                                                 NaN  
+5                                                 NaN  
+6                                                 NaN  
+7                                                 NaN  
+10                                                NaN  
+15                                                999  
+27                                                NaN  
+28                                                NaN  
+30                                                NaN  
+31                                                NaN  
+32                                                NaN  
+33                                                NaN  
+34  POINT (4.3224201223957905 52.07031222846755);S...  
+number of users with records loaded: 1
+28185
+simulated HORECA aSpace
+start selecting outlets within prism
+simulated SHOP aSpace
+start selecting outlets within prism
+bike modeled by 3 times foot!
+simulated HORECA buffer
+start selecting outlets within prism
+simulated SHOP buffer
+start selecting outlets within prism
+True
+14 recorded food events for this user in total!
+SHOP  event
+<type 'float'>
+Supermarkt None 2018-04-26 12:35:00 2018-04-26 12:40:00
+SHOP  event
+<type 'float'>
+Supermarkt None 2018-04-26 12:15:00 2018-04-26 12:20:00
+HORECA event
+<type 'float'>
+Kiosk/ Foodtruck None 2018-04-27 13:30:00 2018-04-27 13:35:00
+HORECA event
+<type 'float'>
+Restaurant/ café None 2018-04-28 11:00:00 2018-04-28 11:05:00
+Checking rec border event successful!
+2018-04-28 10:56:01 2018-04-28 11:00:00 2018-04-28 11:05:00 2018-04-28 11:06:44
+Event: 2018-04-28 10:30:00 2018-04-28 11:00:00 2018-04-28 11:05:00 2018-04-28 11:35:00
+Finding afforded outlets for event 1
+totalduration :3900.0
+eventduration : 300
+modes: Foot and Train
+Start getting accessibility prism
+start selecting outlets within prism
+627 outlets pre-selected!
+getting routing matrix
+... fire matrix requests!
+627 outlet distances computed!
+0 were API failures!
+getting routing matrix
+... fire matrix requests!
+627 outlet distances computed!
+0 were API failures!
+0 trips afforded timewise!
+HORECA event
+<type 'float'>
+Kiosk/ Foodtruck None 2018-04-28 18:35:00 2018-04-28 18:40:00
+SHOP  event
+<type 'float'>
+Supermarkt None 2018-04-28 20:25:00 2018-04-28 20:30:00
+SHOP  event
+<type 'unicode'>
+Supermarkt None 2018-04-30 18:10:00 2018-04-30 18:15:00
+Checking rec border event successful!
+2018-04-30 08:15:57 2018-04-30 18:10:00 2018-04-30 18:15:00 2018-04-30 18:16:14
+Event: 2018-04-30 17:40:00 2018-04-30 18:10:00 2018-04-30 18:15:00 2018-04-30 18:45:00
+Finding afforded outlets for event 2
+totalduration :3900.0
+eventduration : 300
+modes: Train and Bike
+bike modeled by 3 times foot!
+Start getting accessibility prism
+prism empty!!! continue without
+HORECA event
+<type 'float'>
+Koffiecorner/ lunchroom None 2018-05-01 08:20:00 2018-05-01 08:25:00
+SHOP  event
+<type 'float'>
+Supermarkt None 2018-05-01 15:30:00 2018-05-01 15:35:00
+Checking rec border event successful!
+2018-05-01 12:58:03 2018-05-01 15:30:00 2018-05-01 15:35:00 2018-05-01 18:24:05
+Event: 2018-05-01 15:00:00 2018-05-01 15:30:00 2018-05-01 15:35:00 2018-05-01 16:05:00
+Finding afforded outlets for event 3
+totalduration :3900.0
+eventduration : 300
+modes: BusTram and Train
+Start getting accessibility prism
+prism empty!!! continue without
+HORECA event
+<type 'float'>
+Koffiecorner/ lunchroom None 2018-04-30 08:55:00 2018-04-30 09:00:00
+Checking rec border event successful!
+2018-04-30 08:15:57 2018-04-30 08:55:00 2018-04-30 09:00:00 2018-04-30 18:16:14
+Event: 2018-04-30 08:25:00 2018-04-30 08:55:00 2018-04-30 09:00:00 2018-04-30 09:30:00
+Finding afforded outlets for event 4
+totalduration :3900.0
+eventduration : 300
+modes: Train and Bike
+bike modeled by 3 times foot!
+Start getting accessibility prism
+prism empty!!! continue without
+HORECA event
+<type 'float'>
+Kiosk/ Foodtruck None 2018-05-01 18:25:00 2018-05-01 18:30:00
+HORECA event
+<type 'float'>
+Bedrijfsrestaurant/ (sport)kantine None 2018-05-02 11:05:00 2018-05-02 11:10:00
+Checking rec border event successful!
+2018-05-02 07:45:04 2018-05-02 11:05:00 2018-05-02 11:10:00 2018-05-02 15:59:53
+Event: 2018-05-02 10:35:00 2018-05-02 11:05:00 2018-05-02 11:10:00 2018-05-02 11:40:00
+Finding afforded outlets for event 5
+totalduration :3900.0
+eventduration : 300
+modes: Train and Train
+Start getting accessibility prism
+prism empty!!! continue without
+HORECA event
+<type 'float'>
+Bedrijfsrestaurant/ (sport)kantine None 2018-04-30 13:10:00 2018-04-30 13:15:00
+Checking rec border event successful!
+2018-04-30 08:15:57 2018-04-30 13:10:00 2018-04-30 13:15:00 2018-04-30 18:16:14
+Event: 2018-04-30 12:40:00 2018-04-30 13:10:00 2018-04-30 13:15:00 2018-04-30 13:45:00
+Finding afforded outlets for event 6
+totalduration :3900.0
+eventduration : 300
+modes: Train and Bike
+bike modeled by 3 times foot!
+Start getting accessibility prism
+prism empty!!! continue without
+SHOP  event
+<type 'unicode'>
+Supermarkt POINT (4.3224201223957905 52.07031222846755) 2018-05-02 17:15:00 2018-05-02 17:20:00
+6 flexible events detected for user 28185
+--- 50.0419998169 seconds ---
