@@ -67,7 +67,7 @@ def getAffordances(user,eventid, startpoint, starttime, mode1, endpoint, endtime
             print 'bike modeled by 3 times foot!'
         elif mode2 =='Car':
             traveltime2 = ((traveltime2)*1.6)
-        elif mode1 =='Train':
+        elif mode2 =='Train':
             traveltime2 = ((traveltime2)*1.8)
         totalduration = mineventduration +  traveltime1 + traveltime2
         mode1=convertMode(mode1)          #This is needed because there are only car and predestrian modes available
@@ -82,7 +82,9 @@ def getAffordances(user,eventid, startpoint, starttime, mode1, endpoint, endtime
         candidates, candidateids, candidatecats = getPrismOutlets(prism, sidx,ids, outlets, cat, save=os.path.join(newpath,str(eventid)+"preso.shp"))
         print str(len(candidates))+" outlets pre-selected!"
         if len(candidates) >0:
+            print "Get travel matrix v1: "+str(startpoint), starttime.isoformat(), mode1
             v1 = get1TravelMatrix(startpoint, starttime.isoformat(), candidates, mode=mode1)
+            print "Get travel matrix v2 inverse: "+str(endpoint), endtime.isoformat(), mode2
             v2 = get1TravelMatrix(endpoint, endtime.isoformat(), candidates, mode=mode2, inverse=True)
             trips = getAffordedTrips(candidateids, candidates, candidatecats,v1,v2, mineventduration, totalduration)
             saveOutlets(trips,save=os.path.join(newpath,str(eventid)+"afo.shp"))
@@ -200,7 +202,8 @@ def get1TravelMatrix(startpoint, starttime, outlets, mode="car", inverse=False):
                 traveltimes = np.append(traveltimes,r)
             #break
     #print ruri
-    r = fireTTrequest(ruri)
+    if c != 0 :
+        r = fireTTrequest(ruri)
     if r.any():
         traveltimes = np.append(traveltimes,r)
     print str(traveltimes.size)+" outlet distances computed!"
@@ -834,7 +837,7 @@ def constructRecordedEvents(trips,places,outletdata,recordedevents):
                     else:               #Horeca outlets
                                     sidx,ids, outlets, cat = outletdata[0],outletdata[1],outletdata[2],outletdata[3]
                                     print 'HORECA event'
-                    print type(row['LOCATIE'])
+
                     purchaseloc = False
                     if isinstance(row['LOCATIE'],basestring)  and row['LOCATIE']!= '999' and ';' in row['LOCATIE']:
                         pos = row['LOCATIE'].split(';')[0]
@@ -862,15 +865,19 @@ def constructRecordedEvents(trips,places,outletdata,recordedevents):
                                 fe.map(eventnr)
                                 dump[eventnr]=fe.serialize()
                                 getAffordances(user, eventnr, userplaces[sp1]['geo'], st1, mod1, userplaces[pp2]['geo'], pt2, mod2, int(float(eventduration)), sidx,ids, outlets, cat)
-
                             elif checkWithinTripEvent(userplaces, mod1, st1, sp1, start, end, pt1, pp1):
-                                pass
+                                fe = FlexEvent(user,category,mod1, st1, userplaces[sp1], start, poss, mod2, end, pt1, userplaces[pp1])
+                                eventnr +=1
+                                fe.map(eventnr)
+                                dump[eventnr]=fe.serialize()
+                                getAffordances(user, eventnr, userplaces[sp1]['geo'], st1, mod1, userplaces[pp1]['geo'], pt1, mod2, int(float(eventduration)), sidx,ids, outlets, cat)
+                                break
                             elif checkRecBorderEvent(userplaces, mod1, pt1, pp1, pos, start, end, mod2, st2, sp2):
                                 fe = FlexEvent(user,category,mod1, start-timedelta(seconds=1800), userplaces[pp1], start, poss, mod2, end, end+timedelta(seconds=1800), userplaces[sp2])
                                 eventnr +=1
                                 fe.map(eventnr)
                                 dump[eventnr]=fe.serialize()
-                                getAffordances(user, eventnr, userplaces[pp1]['geo'], start-timedelta(seconds=1800), mod1, poss['geo'], end+timedelta(seconds=1800), mod2, int(float(eventduration)), sidx,ids, outlets, cat)
+                                getAffordances(user, eventnr, userplaces[pp1]['geo'], start-timedelta(seconds=1800), mod1,  userplaces[sp2]['geo'], end+timedelta(seconds=1800), mod2, int(float(eventduration)), sidx,ids, outlets, cat)
 
                         lastrow = row
         print str(len(dump.keys()))+' flexible events detected for user ' + str(user)
