@@ -61,20 +61,23 @@ def getAffordances(user,eventid, startpoint, starttime, mode1, endpoint, endtime
         elif mode1 =='Car':
             traveltime1 = ((traveltime1)*1.6)  #This compensates for underestimating speed in the network?
         elif mode1 =='Train':
-            traveltime1 = ((traveltime1)*1.8)
+            traveltime1 = ((traveltime1)*2.5)
         if mode2 =='Bike':
             traveltime2 = ((traveltime2)*3)  #In order to compensate for missing bike mode we use the pedestrian mode and give it 4  times more time
             print 'bike modeled by 3 times foot!'
         elif mode2 =='Car':
             traveltime2 = ((traveltime2)*1.6)
         elif mode2 =='Train':
-            traveltime2 = ((traveltime2)*1.8)
+            traveltime2 = ((traveltime2)*2.5)
         totalduration = mineventduration +  traveltime1 + traveltime2
         mode1=convertMode(mode1)          #This is needed because there are only car and predestrian modes available
         mode2=convertMode(mode2)
         newpath =os.path.join(results,user)
         if not os.path.exists(newpath):
             os.makedirs(newpath)
+
+        print "mode1 = "+mode1
+        print "mode2 = "+mode2
         prism = getPrism(starttime.isoformat(),startpoint, endtime.isoformat(), endpoint, totalduration, mineventduration, mode1=mode1, mode2=mode2, save=os.path.join(newpath,str(eventid)+"prism.shp"))
         if prism.is_empty:
             print 'prism empty!!! continue without'
@@ -94,7 +97,7 @@ def getAffordances(user,eventid, startpoint, starttime, mode1, endpoint, endtime
         print 'no time left!'
 
 def convertMode(mode):
-    if mode == "Foot" or mode == "Bike" or 'unknown':
+    if mode == "Foot" or mode == "Bike" or mode =='unknown':
         return 'pedestrian'
     elif mode == 'Car' or mode=='Train' or mode == 'BusTram':
         return 'car'
@@ -772,7 +775,7 @@ def checkRecEvent(userplaces, mod1, sp1, pt1, pp1, pos, start, end, mod2, st2, p
     if sp1 in userplaces.keys() and pp2 in userplaces.keys() : #Places available in place set?
         if (pt1-timedelta(seconds=300) <= start <=end<= st2+timedelta(seconds=300) ): #Event within stoppingtime, allowing for a five minutes tolerance interval?
             #if mod1 == mod2:
-                if eventduration*3>=maxeventduration: #Stoppingtime not too large for eventime (excluding e.g. overnight stops)
+                if eventduration*4>=maxeventduration: #Stoppingtime not too large for eventime (excluding e.g. overnight stops)
                     #print 'event duration: '+str(eventduration)
                     #print 'max event duration: '+str(maxeventduration)
                         #ep = transform(project,loads(pos))
@@ -866,11 +869,12 @@ def constructRecordedEvents(trips,places,outletdata,recordedevents):
                                 dump[eventnr]=fe.serialize()
                                 getAffordances(user, eventnr, userplaces[sp1]['geo'], st1, mod1, userplaces[pp2]['geo'], pt2, mod2, int(float(eventduration)), sidx,ids, outlets, cat)
                             elif checkWithinTripEvent(userplaces, mod1, st1, sp1, start, end, pt1, pp1):
-                                fe = FlexEvent(user,category,mod1, st1, userplaces[sp1], start, poss, mod2, end, pt1, userplaces[pp1])
+                                fe = FlexEvent(user,category,mod1, st1, userplaces[sp1], start, poss, mod1, end, pt1, userplaces[pp1])
                                 eventnr +=1
                                 fe.map(eventnr)
                                 dump[eventnr]=fe.serialize()
-                                getAffordances(user, eventnr, userplaces[sp1]['geo'], st1, mod1, userplaces[pp1]['geo'], pt1, mod2, int(float(eventduration)), sidx,ids, outlets, cat)
+                                getAffordances(user, eventnr, userplaces[sp1]['geo'], st1-timedelta(seconds=300), mod1, userplaces[pp1]['geo'], pt1+timedelta(seconds=300), mod1, int(float(eventduration)), sidx,ids, outlets, cat)
+                                #adding a small (5+5 minutes) time tolerance for stopping and purchasing something on the way
                                 break
                             elif checkRecBorderEvent(userplaces, mod1, pt1, pp1, pos, start, end, mod2, st2, sp2):
                                 fe = FlexEvent(user,category,mod1, start-timedelta(seconds=1800), userplaces[pp1], start, poss, mod2, end, end+timedelta(seconds=1800), userplaces[sp2])
