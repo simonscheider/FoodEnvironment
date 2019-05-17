@@ -14,6 +14,7 @@
 import csv
 import time
 import requests
+import random
 myappid   = 'omN8lWe0pRNExedt6Gh2'
 myappcode = 'bS_F57D8weI6ZNzEYJ_UmQ'
 import json
@@ -59,16 +60,16 @@ def getAffordances(user,eventid, startpoint, starttime, mode1, endpoint, endtime
             print 'bike modeled by 3 times foot!'
             traveltime1  = ((traveltime1)*3)  #In order to compensate for missing bike mode we use the pedestrian mode and give it 4  times more time
         elif mode1 =='Car':
-            traveltime1 = ((traveltime1)*1.6)  #This compensates for underestimating speed in the network?
+            traveltime1 = ((traveltime1)*1)  #This compensates for underestimating speed in the network?
         elif mode1 =='Train':
-            traveltime1 = ((traveltime1)*2.5)
+            traveltime1 = ((traveltime1)*1.2)
         if mode2 =='Bike':
             traveltime2 = ((traveltime2)*3)  #In order to compensate for missing bike mode we use the pedestrian mode and give it 4  times more time
             print 'bike modeled by 3 times foot!'
         elif mode2 =='Car':
-            traveltime2 = ((traveltime2)*1.6)
+            traveltime2 = ((traveltime2)*1)
         elif mode2 =='Train':
-            traveltime2 = ((traveltime2)*2.5)
+            traveltime2 = ((traveltime2)*1.2)
         totalduration = mineventduration +  traveltime1 + traveltime2
         mode1=convertMode(mode1)          #This is needed because there are only car and predestrian modes available
         mode2=convertMode(mode2)
@@ -83,7 +84,18 @@ def getAffordances(user,eventid, startpoint, starttime, mode1, endpoint, endtime
             print 'prism empty!!! continue without'
             return
         candidates, candidateids, candidatecats = getPrismOutlets(prism, sidx,ids, outlets, cat, save=os.path.join(newpath,str(eventid)+"preso.shp"))
-        print str(len(candidates))+" outlets pre-selected!"
+        cansize = len(candidates)
+        print str(cansize)+" outlets pre-selected!"
+        if cansize > 3000:
+            print "randomsample 3000"
+            can = list(enumerate(candidates))
+            sample = random.sample(can,k=3000)
+            canix = [idx for idx, val in sample]
+            candidates = [val for idx, val in sample]
+            canids = [candidateids[idx] for idx in canix]
+            candidateids = canids
+            cancat = [candidatecats[idx] for idx in canix]
+            candidatecats = cancat
         if len(candidates) >0:
             print "Get travel matrix v1: "+str(startpoint), starttime.isoformat(), mode1
             v1 = get1TravelMatrix(startpoint, starttime.isoformat(), candidates, mode=mode1)
@@ -873,8 +885,8 @@ def constructRecordedEvents(trips,places,outletdata,recordedevents):
                                 eventnr +=1
                                 fe.map(eventnr)
                                 dump[eventnr]=fe.serialize()
-                                getAffordances(user, eventnr, userplaces[sp1]['geo'], st1-timedelta(seconds=300), mod1, userplaces[pp1]['geo'], pt1+timedelta(seconds=300), mod1, int(float(eventduration)), sidx,ids, outlets, cat)
-                                #adding a small (5+5 minutes) time tolerance for stopping and purchasing something on the way
+                                getAffordances(user, eventnr, userplaces[sp1]['geo'], st1-timedelta(seconds=30), mod1, userplaces[pp1]['geo'], pt1+timedelta(seconds=30), mod1, int(float(eventduration)), sidx,ids, outlets, cat)
+                                #adding a small (1 minute) time tolerance for stopping and purchasing something on the way
                                 break
                             elif checkRecBorderEvent(userplaces, mod1, pt1, pp1, pos, start, end, mod2, st2, sp2):
                                 fe = FlexEvent(user,category,mod1, start-timedelta(seconds=1800), userplaces[pp1], start, poss, mod2, end, end+timedelta(seconds=1800), userplaces[sp2])
@@ -942,6 +954,8 @@ def main():
 
 if __name__ == '__main__':
     start_time = time.time()
+    #Logging into file
+    sys.stdout = open(os.path.join(results,'log.txt'), 'w')
     main()
     print("--- %s seconds ---" % (time.time() - start_time))
 
