@@ -11,7 +11,7 @@
 # Copyright:   (c) Simon Scheider 2018
 # Licence:     MIT license
 #-----------------------------------------------------------------------------
-import csv
+import csv, sys
 import time
 import requests
 import random
@@ -86,10 +86,10 @@ def getAffordances(user,eventid, startpoint, starttime, mode1, endpoint, endtime
         candidates, candidateids, candidatecats = getPrismOutlets(prism, sidx,ids, outlets, cat, save=os.path.join(newpath,str(eventid)+"preso.shp"))
         cansize = len(candidates)
         print str(cansize)+" outlets pre-selected!"
-        if cansize > 3000:
-            print "randomsample 3000"
+        if cansize > 2000:
+            print "randomsample 2000"
             can = list(enumerate(candidates))
-            sample = random.sample(can,k=3000)
+            sample = random.sample(can,k=2000)
             canix = [idx for idx, val in sample]
             candidates = [val for idx, val in sample]
             canids = [candidateids[idx] for idx in canix]
@@ -338,7 +338,7 @@ def generate_index(records, index_path=None):
 
 #This class captures modifiable food events consisting of: travel - food activity - travel
 class FlexEvent():
-    def __init__(self, user, category, mod1, st1, sp1, pt1, pp1, mod2, st2, pt2, pp2):
+    def __init__(self, user, category, mod1, st1, sp1, pt1, pp1, mod2, st2, pt2, pp2, constructiontype = 'RecEvent'):
          self.user = user
          self.mod1 =mod1
          self.st1 = st1
@@ -351,7 +351,8 @@ class FlexEvent():
          self.pp2 =pp2
          self.eventduration = (self.st2 -  self.pt1 ).total_seconds()
          self.category = category #(self.pp1['label']).split(':')[0]
-         print "Event: "+str(st1) +" "+ str(pt1) +" "+  str(st2)  +" "+ str(pt2)
+         self.constype = constructiontype
+         print "Event: "+str(constructiontype)+" "+str(st1) +" "+ str(pt1) +" "+  str(st2)  +" "+ str(pt2)
 
     def serialize(self):
         return {
@@ -367,7 +368,8 @@ class FlexEvent():
          'stoptime2':str(self.pt2),
          'stopplace2':{'label':self.pp2['label'], 'geo':str(self.pp2['geo'])}},
          'eventduration':str(self.eventduration),
-         'category':(self.category).encode('utf-8').strip()
+         'category':self.category,#).encode('utf-8').strip(),
+         'constype': self.constype#).encode('utf-8').strip()
         }
     def map(self, id):
         newpath=os.path.join(results,str(self.user))
@@ -842,10 +844,12 @@ def constructRecordedEvents(trips,places,outletdata,recordedevents):
         dump = {}
         eventnr = 0
         print str(len(evs))+ ' recorded food events for this user in total!'
+        dump['norecevs']=str(len(evs))
         for index, row in evs.iterrows():
-            if row['type of outlet of purchase'] != np.nan:
+            category = row['type of outlet of purchase']
+            if category != np.nan:
                 #if row['LOCATIE'].split(';')[0] != '999':
-                    category = row['type of outlet of purchase'].strip()
+                    category = category.encode('utf-8').strip()
                     if category== 'Supermarkt': #Shop outlets
                                     sidx,ids, outlets,cat = outletdata[4],outletdata[5],outletdata[6],outletdata[7]
                                     print 'SHOP  event'
@@ -875,28 +879,30 @@ def constructRecordedEvents(trips,places,outletdata,recordedevents):
                                 poss = userplaces[pp1]
                                 pos = userplaces[pp1]['geo'].wkt
                             if checkRecEvent(userplaces, mod1, sp1, pt1, pp1, pos, start, end, mod2, st2, pp2):
-                                fe = FlexEvent(user,category,mod1, st1, userplaces[sp1], pt1, poss, mod2, st2, pt2, userplaces[pp2])
+                                fe = FlexEvent(user,category,mod1, st1, userplaces[sp1], pt1, poss, mod2, st2, pt2, userplaces[pp2], constructiontype = 'RecEvent')
                                 eventnr +=1
                                 fe.map(eventnr)
                                 dump[eventnr]=fe.serialize()
                                 getAffordances(user, eventnr, userplaces[sp1]['geo'], st1, mod1, userplaces[pp2]['geo'], pt2, mod2, int(float(eventduration)), sidx,ids, outlets, cat)
                             elif checkWithinTripEvent(userplaces, mod1, st1, sp1, start, end, pt1, pp1):
-                                fe = FlexEvent(user,category,mod1, st1, userplaces[sp1], start, poss, mod1, end, pt1, userplaces[pp1])
+                                fe = FlexEvent(user,category,mod1, st1, userplaces[sp1], start, poss, mod1, end, pt1, userplaces[pp1], constructiontype = 'WithinTripEvent')
                                 eventnr +=1
                                 fe.map(eventnr)
                                 dump[eventnr]=fe.serialize()
                                 getAffordances(user, eventnr, userplaces[sp1]['geo'], st1-timedelta(seconds=30), mod1, userplaces[pp1]['geo'], pt1+timedelta(seconds=30), mod1, int(float(eventduration)), sidx,ids, outlets, cat)
                                 #adding a small (1 minute) time tolerance for stopping and purchasing something on the way
                                 break
-                            elif checkRecBorderEvent(userplaces, mod1, pt1, pp1, pos, start, end, mod2, st2, sp2):
-                                fe = FlexEvent(user,category,mod1, start-timedelta(seconds=1800), userplaces[pp1], start, poss, mod2, end, end+timedelta(seconds=1800), userplaces[sp2])
+                            elif checkRecBorderEvent(userplaces, mod1, pt1, pp1, pos, start, end, mod2, st2, sp2, ):
+                                fe = FlexEvent(user,category,mod1, start-timedelta(seconds=1800), userplaces[pp1], start, poss, mod2, end, end+timedelta(seconds=1800), userplaces[sp2], constructiontype = 'RecBorderEvent')
                                 eventnr +=1
                                 fe.map(eventnr)
                                 dump[eventnr]=fe.serialize()
                                 getAffordances(user, eventnr, userplaces[pp1]['geo'], start-timedelta(seconds=1800), mod1,  userplaces[sp2]['geo'], end+timedelta(seconds=1800), mod2, int(float(eventduration)), sidx,ids, outlets, cat)
 
                         lastrow = row
-        print str(len(dump.keys()))+' flexible events detected for user ' + str(user)
+        det = str(len(dump.keys()))
+        print det+' flexible events detected for user ' + str(user)
+        dump['nodetevs']=det
         with open(store, 'w') as fp:
             json.dump(dump, fp)
         fp.close
