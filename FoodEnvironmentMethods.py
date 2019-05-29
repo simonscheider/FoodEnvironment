@@ -653,7 +653,7 @@ def loadTrips(trips, usersample):
         usertrack =tr[tr['deviceId']== id ] #and
         usertrack =usertrack[usertrack['startTime'].apply(lambda x: dateparse(x) >=ti1 and dateparse(x) <=ti2)]
         out[str(int(id))]=usertrack
-        break
+        #break
 
     #ti1 = datetime.strptime("2016-10-25T12:00:00",'%Y-%m-%dT%H:%M:%S')
     #ti2 =  datetime.strptime("2016-10-30T23:50:00",'%Y-%m-%dT%H:%M:%S')
@@ -760,18 +760,20 @@ def loadRecords(recordedevents, usersample):
         #userevents =userevents[userevents['Start date'].apply(lambda x: dateparse2(x) >=ti1 and dateparse2(x) <=ti2)]
         #userevents = userevents[['VoterID','Start date','End date', 'DEVICECODE','type of outlet of purchase', 'LOCATIE']].drop_duplicates()
         userevents = userevents[['VoterID','date_of_purchase', 'time_of_purchase', 'DEVICECODE','WAAR', 'Locatie']].drop_duplicates()
+        #print userevents
+        if not userevents.empty: #user not in records
+            userevents['Start date'] = userevents.apply (lambda row: dateparse3(row['date_of_purchase'], row['time_of_purchase']), axis=1)
+            userevents =userevents[userevents['Start date'].apply(lambda x: x >=ti1 and x <=ti2)]
+            if not userevents.empty: #user not in records
+                userevents['End date'] =  userevents.apply(lambda row: row['Start date']+timedelta(seconds=300), axis=1)
+                userevents['type of outlet of purchase'] = userevents.apply(lambda row: row['WAAR'], axis=1)
+                userevents['LOCATIE'] = userevents.apply(lambda row: row['Locatie'], axis=1)
+                userevents = userevents[['VoterID','Start date','End date', 'DEVICECODE','type of outlet of purchase', 'LOCATIE']]
+                #userevents = userevents.groupby(['VoterID', 'Start date','End date', 'DEVICECODE', 'type of outlet of purchase', 'LOCATIE'])["purchased products "].sum()
+                print (userevents)
 
-        userevents['Start date'] = userevents.apply (lambda row: dateparse3(row['date_of_purchase'], row['time_of_purchase']), axis=1)
-        userevents =userevents[userevents['Start date'].apply(lambda x: x >=ti1 and x <=ti2)]
-        userevents['End date'] =  userevents.apply(lambda row: row['Start date']+timedelta(seconds=300), axis=1)
-        userevents['type of outlet of purchase'] = userevents.apply(lambda row: row['WAAR'], axis=1)
-        userevents['LOCATIE'] = userevents.apply(lambda row: row['Locatie'], axis=1)
-        userevents = userevents[['VoterID','Start date','End date', 'DEVICECODE','type of outlet of purchase', 'LOCATIE']]
-        #userevents = userevents.groupby(['VoterID', 'Start date','End date', 'DEVICECODE', 'type of outlet of purchase', 'LOCATIE'])["purchased products "].sum()
-        print (userevents)
-
-        out.append(userevents)
-        break
+                out.append(userevents)
+        #break
 
     #ti1 = datetime.strptime("2016-10-25T12:00:00",'%Y-%m-%dT%H:%M:%S')
     #ti2 =  datetime.strptime("2016-10-30T23:50:00",'%Y-%m-%dT%H:%M:%S')
@@ -828,7 +830,7 @@ def checkWithinTripEvent(userplaces, mod1, st1, sp1, start, end, pt1, pp1):
 
 
 #Handle recorded events
-def constructRecordedEvents(trips,places,outletdata,recordedevents):
+def constructRecordedEvents(trips,places,outletdata,recordedevents, overwrite = False):
      for index, evs in enumerate(recordedevents):
         #print evs
         user = str(int(evs['DEVICECODE'].iloc[0]))
@@ -836,10 +838,19 @@ def constructRecordedEvents(trips,places,outletdata,recordedevents):
         userplaces = places[user]
         #generating simple methods first:
         store = os.path.join(results,str(user)+"Recevents.json")
+        #Prevent overvwriting results in case overwrite is false
+        goon = True
+        if not overwrite:
+            goon = False
+            try:
+                exdata = json.load(open(store, 'r'))
+            except FileNotFoundError:
+                goon = True
         t = trips[user]
-        activitySpace(user,userplaces,t, outletdata)
-        homeBuffer(user,userplaces, outletdata,'Bike')
-        activityMap(user, userplaces)
+        if goon:
+            activitySpace(user,userplaces,t, outletdata)
+            homeBuffer(user,userplaces, outletdata,'Bike')
+            activityMap(user, userplaces)
         print str(t['deviceId'].iloc[0]) ==user
         dump = {}
         eventnr = 0
@@ -881,34 +892,50 @@ def constructRecordedEvents(trips,places,outletdata,recordedevents):
                             if checkRecEvent(userplaces, mod1, sp1, pt1, pp1, pos, start, end, mod2, st2, pp2):
                                 fe = FlexEvent(user,category,mod1, st1, userplaces[sp1], pt1, poss, mod2, st2, pt2, userplaces[pp2], constructiontype = 'RecEvent')
                                 eventnr +=1
-                                fe.map(eventnr)
                                 dump[eventnr]=fe.serialize()
+                                if not goon:
+                                    if str(eventnr) in exdata.keys():
+                                        break
+                                    else:
+                                        goon = True
+                                fe.map(eventnr)
                                 getAffordances(user, eventnr, userplaces[sp1]['geo'], st1, mod1, userplaces[pp2]['geo'], pt2, mod2, int(float(eventduration)), sidx,ids, outlets, cat)
                             elif checkWithinTripEvent(userplaces, mod1, st1, sp1, start, end, pt1, pp1):
                                 fe = FlexEvent(user,category,mod1, st1, userplaces[sp1], start, poss, mod1, end, pt1, userplaces[pp1], constructiontype = 'WithinTripEvent')
                                 eventnr +=1
-                                fe.map(eventnr)
                                 dump[eventnr]=fe.serialize()
+                                if not goon:
+                                    if str(eventnr) in exdata.keys():
+                                        break
+                                    else:
+                                        goon = True
+                                fe.map(eventnr)
                                 getAffordances(user, eventnr, userplaces[sp1]['geo'], st1-timedelta(seconds=30), mod1, userplaces[pp1]['geo'], pt1+timedelta(seconds=30), mod1, int(float(eventduration)), sidx,ids, outlets, cat)
                                 #adding a small (1 minute) time tolerance for stopping and purchasing something on the way
                                 break
                             elif checkRecBorderEvent(userplaces, mod1, pt1, pp1, pos, start, end, mod2, st2, sp2, ):
                                 fe = FlexEvent(user,category,mod1, start-timedelta(seconds=1800), userplaces[pp1], start, poss, mod2, end, end+timedelta(seconds=1800), userplaces[sp2], constructiontype = 'RecBorderEvent')
                                 eventnr +=1
-                                fe.map(eventnr)
                                 dump[eventnr]=fe.serialize()
+                                if not goon:
+                                    if str(eventnr) in exdata.keys():
+                                        break
+                                    else:
+                                        goon = True
+                                fe.map(eventnr)
                                 getAffordances(user, eventnr, userplaces[pp1]['geo'], start-timedelta(seconds=1800), mod1,  userplaces[sp2]['geo'], end+timedelta(seconds=1800), mod2, int(float(eventduration)), sidx,ids, outlets, cat)
 
                         lastrow = row
         det = str(len(dump.keys()))
         print det+' flexible events detected for user ' + str(user)
         dump['nodetevs']=det
-        with open(store, 'w') as fp:
-            json.dump(dump, fp)
-        fp.close
+        if goon:
+            with open(store, 'w') as fp:
+                json.dump(dump, fp)
+            fp.close
 
 
-        break
+        #break
 
 
 
@@ -929,7 +956,7 @@ def main():
     pl = loadPlaces(places)
     tr = loadTrips(trips,usersample)
     ev = loadRecords(recordedevents,usersample)
-    #constructEvents(tr,pl,outletdata,tripeventsOn=True)
+    ##constructEvents(tr,pl,outletdata,tripeventsOn=True)
     constructRecordedEvents(tr,pl,outletdata,ev)
 
 
