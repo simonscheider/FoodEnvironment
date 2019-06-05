@@ -659,7 +659,7 @@ def loadTrips(trips, usersample):
     #ti2 =  datetime.strptime("2016-10-30T23:50:00",'%Y-%m-%dT%H:%M:%S')
     #tr = tr[tr['startTime'].apply(lambda x: dateparse(x) >=ti1 and dateparse(x) <=ti2)]
     #tr = list(tr.groupby('deviceId'))
-    print 'number of users loaded: '+ str(len(out.keys()))
+    print 'number of users with trips: '+ str(len(out.keys()))
     print out.keys()
     return out
 
@@ -668,6 +668,7 @@ def loadTrips(trips, usersample):
 
 def homeBuffer(user,userplaces, outletdata, mode):
     home = None
+    print "Home buffers are generated"
     availabletime = 1800 #30 minutes from home buffer
     if mode =='Bike':
         print 'bike modeled by 3 times foot!'
@@ -685,14 +686,17 @@ def homeBuffer(user,userplaces, outletdata, mode):
     if home !=None:
         poly = transform(project, getisoline(home,availabletime, mode = mode)) #assuming the car default
         sidx,ids, outlets, cat = outletdata[0],outletdata[1],outletdata[2],outletdata[3]
-        print 'simulated HORECA buffer'
-        candidates, candidateids, candidatecats = getPrismOutlets(poly, sidx,ids, outlets, cat)
-        saveOutlets([[candidateids[i],candidates[i],candidatecats[i]] for i,v in enumerate(candidates)], save=os.path.join(newpath,"bufferHORECA.shp"))
+        if poly.is_empty:
+            print "Prism empty! No buffer outlets selected"
+        else:
+            print 'simulated HORECA buffer'
+            candidates, candidateids, candidatecats = getPrismOutlets(poly, sidx,ids, outlets, cat)
+            saveOutlets([[candidateids[i],candidates[i],candidatecats[i]] for i,v in enumerate(candidates)], save=os.path.join(newpath,"bufferHORECA.shp"))
                                      #Shop outlets
-        sidx,ids, outlets,cat = outletdata[4],outletdata[5],outletdata[6],outletdata[7]
-        print 'simulated SHOP buffer'
-        candidates, candidateids, candidatecats = getPrismOutlets(poly, sidx,ids, outlets, cat)
-        saveOutlets([[candidateids[i],candidates[i],candidatecats[i]] for i,v in enumerate(candidates)], save=os.path.join(newpath,"bufferSHOP.shp"))
+            sidx,ids, outlets,cat = outletdata[4],outletdata[5],outletdata[6],outletdata[7]
+            print 'simulated SHOP buffer'
+            candidates, candidateids, candidatecats = getPrismOutlets(poly, sidx,ids, outlets, cat)
+            saveOutlets([[candidateids[i],candidates[i],candidatecats[i]] for i,v in enumerate(candidates)], save=os.path.join(newpath,"bufferSHOP.shp"))
     else:
         print "no home location for generating home buffer!"
 
@@ -710,7 +714,7 @@ def activitySpace(user,userplaces,track, outletdata):
                     lines.append(LineString([transform(project,frompl['geo']), transform(project,topl['geo'])]))
      #print lines #transform(project, transform(project,
      multiline = MultiLineString(lines)
-     linestringbuffer = shape(multiline).buffer(50)
+     linestringbuffer = shape(multiline).buffer(100)
      #print linestringbuffer
      save = os.path.join(newpath,"aspace.shp" )
      schema = {
@@ -729,14 +733,17 @@ def activitySpace(user,userplaces,track, outletdata):
 
      c.close
      sidx,ids, outlets, cat = outletdata[0],outletdata[1],outletdata[2],outletdata[3]
-     print 'simulated HORECA aSpace'
-     candidates, candidateids, candidatecats = getPrismOutlets(linestringbuffer, sidx,ids, outlets, cat)
-     saveOutlets([[candidateids[i],candidates[i],candidatecats[i]] for i,v in enumerate(candidates)], save=os.path.join(newpath,"aSpaceHORECA.shp"))
-                                     #Shop outlets
-     sidx,ids, outlets,cat = outletdata[4],outletdata[5],outletdata[6],outletdata[7]
-     print 'simulated SHOP aSpace'
-     candidates, candidateids, candidatecats = getPrismOutlets(linestringbuffer, sidx,ids, outlets, cat)
-     saveOutlets([[candidateids[i],candidates[i],candidatecats[i]] for i,v in enumerate(candidates)], save=os.path.join(newpath,"aSpaceSHOP.shp"))
+     if linestringbuffer.is_empty:
+        print "Linestringbuffer empty! No outlets selected"
+     else:
+         print 'simulated HORECA aSpace'
+         candidates, candidateids, candidatecats = getPrismOutlets(linestringbuffer, sidx,ids, outlets, cat)
+         saveOutlets([[candidateids[i],candidates[i],candidatecats[i]] for i,v in enumerate(candidates)], save=os.path.join(newpath,"aSpaceHORECA.shp"))
+                                         #Shop outlets
+         sidx,ids, outlets,cat = outletdata[4],outletdata[5],outletdata[6],outletdata[7]
+         print 'simulated SHOP aSpace'
+         candidates, candidateids, candidatecats = getPrismOutlets(linestringbuffer, sidx,ids, outlets, cat)
+         saveOutlets([[candidateids[i],candidates[i],candidatecats[i]] for i,v in enumerate(candidates)], save=os.path.join(newpath,"aSpaceSHOP.shp"))
 
 
 def loadRecords(recordedevents, usersample):
@@ -749,6 +756,7 @@ def loadRecords(recordedevents, usersample):
     #print validids.keys()
     #print validids
     out = []
+    userlist = []
 
     for index, row in validids.iterrows():
         #print row
@@ -770,17 +778,18 @@ def loadRecords(recordedevents, usersample):
                 userevents['LOCATIE'] = userevents.apply(lambda row: row['Locatie'], axis=1)
                 userevents = userevents[['VoterID','Start date','End date', 'DEVICECODE','type of outlet of purchase', 'LOCATIE']]
                 #userevents = userevents.groupby(['VoterID', 'Start date','End date', 'DEVICECODE', 'type of outlet of purchase', 'LOCATIE'])["purchased products "].sum()
-                print (userevents)
+                #print (userevents)
 
                 out.append(userevents)
+                userlist.append(id)
         #break
 
     #ti1 = datetime.strptime("2016-10-25T12:00:00",'%Y-%m-%dT%H:%M:%S')
     #ti2 =  datetime.strptime("2016-10-30T23:50:00",'%Y-%m-%dT%H:%M:%S')
     #tr = tr[tr['startTime'].apply(lambda x: dateparse(x) >=ti1 and dateparse(x) <=ti2)]
     #tr = list(tr.groupby('deviceId'))
-    print 'number of users with records loaded: '+ str(len(out))
-    #print (validids)
+    print 'Number of users with records loaded: '+ str(len(out))
+    print userlist
     return out
 
 """This function checks whether recorded event is within two consecutive framing trips based on space and time"""
@@ -831,7 +840,8 @@ def checkWithinTripEvent(userplaces, mod1, st1, sp1, start, end, pt1, pp1):
 
 #Handle recorded events
 def constructRecordedEvents(trips,places,outletdata,recordedevents, overwrite = False):
-     for index, evs in enumerate(recordedevents):
+    userswithresults = []
+    for index, evs in enumerate(recordedevents):
         #print evs
         user = str(int(evs['DEVICECODE'].iloc[0]))
         print user
@@ -844,13 +854,16 @@ def constructRecordedEvents(trips,places,outletdata,recordedevents, overwrite = 
             goon = False
             try:
                 exdata = json.load(open(store, 'r'))
-            except FileNotFoundError:
+            except IOError:
                 goon = True
         t = trips[user]
         if goon:
             activitySpace(user,userplaces,t, outletdata)
             homeBuffer(user,userplaces, outletdata,'Bike')
             activityMap(user, userplaces)
+        if t.empty:
+            print "User "+str(user)+" does not have any trips! Break!"
+            break
         print str(t['deviceId'].iloc[0]) ==user
         dump = {}
         eventnr = 0
@@ -928,6 +941,7 @@ def constructRecordedEvents(trips,places,outletdata,recordedevents, overwrite = 
                         lastrow = row
         det = str(len(dump.keys()))
         print det+' flexible events detected for user ' + str(user)
+        userswithresults.append(user)
         dump['nodetevs']=det
         if goon:
             with open(store, 'w') as fp:
@@ -936,7 +950,8 @@ def constructRecordedEvents(trips,places,outletdata,recordedevents, overwrite = 
 
 
         #break
-
+    print "Recorded users with reconstructed food events: "+str(len(userswithresults))
+    print userswithresults
 
 
 
