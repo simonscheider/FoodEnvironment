@@ -863,90 +863,90 @@ def constructRecordedEvents(trips,places,outletdata,recordedevents, overwrite = 
             activityMap(user, userplaces)
         if t.empty:
             print "User "+str(user)+" does not have any trips! Break!"
-            break
-        print str(t['deviceId'].iloc[0]) ==user
-        dump = {}
-        eventnr = 0
-        print str(len(evs))+ ' recorded food events for this user in total!'
-        dump['norecevs']=str(len(evs))
-        for index, row in evs.iterrows():
-            category = row['type of outlet of purchase']
-            if category != np.nan:
-                #if row['LOCATIE'].split(';')[0] != '999':
-                    category = category.encode('utf-8').strip()
-                    if category== 'Supermarkt': #Shop outlets
-                                    sidx,ids, outlets,cat = outletdata[4],outletdata[5],outletdata[6],outletdata[7]
-                                    print 'SHOP  event'
-                    else:               #Horeca outlets
-                                    sidx,ids, outlets, cat = outletdata[0],outletdata[1],outletdata[2],outletdata[3]
-                                    print 'HORECA event'
+        else:
+            print str(t['deviceId'].iloc[0]) ==user
+            dump = {}
+            eventnr = 0
+            print str(len(evs))+ ' recorded food events for this user in total!'
+            dump['norecevs']=str(len(evs))
+            for index, row in evs.iterrows():
+                category = row['type of outlet of purchase']
+                if category != np.nan:
+                    #if row['LOCATIE'].split(';')[0] != '999':
+                        category = category.encode('utf-8').strip()
+                        if category== 'Supermarkt': #Shop outlets
+                                        sidx,ids, outlets,cat = outletdata[4],outletdata[5],outletdata[6],outletdata[7]
+                                        print 'SHOP  event'
+                        else:               #Horeca outlets
+                                        sidx,ids, outlets, cat = outletdata[0],outletdata[1],outletdata[2],outletdata[3]
+                                        print 'HORECA event'
 
-                    purchaseloc = False
-                    if isinstance(row['LOCATIE'],basestring)  and row['LOCATIE']!= '999' and ';' in row['LOCATIE']:
-                        pos = row['LOCATIE'].split(';')[0]
-                        label =row['LOCATIE'].split(';')[1]
-                        poss = {'geo':loads(pos), 'label':label}
-                        purchaseloc = True
+                        purchaseloc = False
+                        if isinstance(row['LOCATIE'],basestring)  and row['LOCATIE']!= '999' and ';' in row['LOCATIE']:
+                            pos = row['LOCATIE'].split(';')[0]
+                            label =row['LOCATIE'].split(';')[1]
+                            poss = {'geo':loads(pos), 'label':label}
+                            purchaseloc = True
 
-                    start =dateparse2(row['Start date'])
-                    end = dateparse2(row['End date'])
-                    eventduration = (end - start).total_seconds()
-                    print category,start,end
-                    lastrow = pd.Series()
-                    #print t.iloc[0]
-                    for index,row in t.iterrows():
-                        if not lastrow.empty:
-                            mod1, st1, sp1, pt1, pp1 =  getTripInfo(lastrow)
-                            mod2, st2, sp2, pt2, pp2 =  getTripInfo(row)
-                            #print lastrow
-                            if not purchaseloc and pp1 in userplaces.keys(): #If location of purchase is not available
-                                poss = userplaces[pp1]
-                                pos = userplaces[pp1]['geo'].wkt
-                            if checkRecEvent(userplaces, mod1, sp1, pt1, pp1, pos, start, end, mod2, st2, pp2):
-                                fe = FlexEvent(user,category,mod1, st1, userplaces[sp1], pt1, poss, mod2, st2, pt2, userplaces[pp2], constructiontype = 'RecEvent')
-                                eventnr +=1
-                                dump[eventnr]=fe.serialize()
-                                if not goon:
-                                    if str(eventnr) in exdata.keys():
-                                        break
-                                    else:
-                                        goon = True
-                                fe.map(eventnr)
-                                getAffordances(user, eventnr, userplaces[sp1]['geo'], st1, mod1, userplaces[pp2]['geo'], pt2, mod2, int(float(eventduration)), sidx,ids, outlets, cat)
-                            elif checkWithinTripEvent(userplaces, mod1, st1, sp1, start, end, pt1, pp1):
-                                fe = FlexEvent(user,category,mod1, st1, userplaces[sp1], start, poss, mod1, end, pt1, userplaces[pp1], constructiontype = 'WithinTripEvent')
-                                eventnr +=1
-                                dump[eventnr]=fe.serialize()
-                                if not goon:
-                                    if str(eventnr) in exdata.keys():
-                                        break
-                                    else:
-                                        goon = True
-                                fe.map(eventnr)
-                                getAffordances(user, eventnr, userplaces[sp1]['geo'], st1-timedelta(seconds=30), mod1, userplaces[pp1]['geo'], pt1+timedelta(seconds=30), mod1, int(float(eventduration)), sidx,ids, outlets, cat)
-                                #adding a small (1 minute) time tolerance for stopping and purchasing something on the way
-                                break
-                            elif checkRecBorderEvent(userplaces, mod1, pt1, pp1, pos, start, end, mod2, st2, sp2, ):
-                                fe = FlexEvent(user,category,mod1, start-timedelta(seconds=1800), userplaces[pp1], start, poss, mod2, end, end+timedelta(seconds=1800), userplaces[sp2], constructiontype = 'RecBorderEvent')
-                                eventnr +=1
-                                dump[eventnr]=fe.serialize()
-                                if not goon:
-                                    if str(eventnr) in exdata.keys():
-                                        break
-                                    else:
-                                        goon = True
-                                fe.map(eventnr)
-                                getAffordances(user, eventnr, userplaces[pp1]['geo'], start-timedelta(seconds=1800), mod1,  userplaces[sp2]['geo'], end+timedelta(seconds=1800), mod2, int(float(eventduration)), sidx,ids, outlets, cat)
+                        start =dateparse2(row['Start date'])
+                        end = dateparse2(row['End date'])
+                        eventduration = (end - start).total_seconds()
+                        print category,start,end
+                        lastrow = pd.Series()
+                        #print t.iloc[0]
+                        for index,row in t.iterrows():
+                            if not lastrow.empty:
+                                mod1, st1, sp1, pt1, pp1 =  getTripInfo(lastrow)
+                                mod2, st2, sp2, pt2, pp2 =  getTripInfo(row)
+                                #print lastrow
+                                if not purchaseloc and pp1 in userplaces.keys(): #If location of purchase is not available
+                                    poss = userplaces[pp1]
+                                    pos = userplaces[pp1]['geo'].wkt
+                                if checkRecEvent(userplaces, mod1, sp1, pt1, pp1, pos, start, end, mod2, st2, pp2):
+                                    fe = FlexEvent(user,category,mod1, st1, userplaces[sp1], pt1, poss, mod2, st2, pt2, userplaces[pp2], constructiontype = 'RecEvent')
+                                    eventnr +=1
+                                    dump[eventnr]=fe.serialize()
+                                    if not goon:
+                                        if str(eventnr) in exdata.keys():
+                                            break
+                                        else:
+                                            goon = True
+                                    fe.map(eventnr)
+                                    getAffordances(user, eventnr, userplaces[sp1]['geo'], st1, mod1, userplaces[pp2]['geo'], pt2, mod2, int(float(eventduration)), sidx,ids, outlets, cat)
+                                elif checkWithinTripEvent(userplaces, mod1, st1, sp1, start, end, pt1, pp1):
+                                    fe = FlexEvent(user,category,mod1, st1, userplaces[sp1], start, poss, mod1, end, pt1, userplaces[pp1], constructiontype = 'WithinTripEvent')
+                                    eventnr +=1
+                                    dump[eventnr]=fe.serialize()
+                                    if not goon:
+                                        if str(eventnr) in exdata.keys():
+                                            break
+                                        else:
+                                            goon = True
+                                    fe.map(eventnr)
+                                    getAffordances(user, eventnr, userplaces[sp1]['geo'], st1-timedelta(seconds=30), mod1, userplaces[pp1]['geo'], pt1+timedelta(seconds=30), mod1, int(float(eventduration)), sidx,ids, outlets, cat)
+                                    #adding a small (1 minute) time tolerance for stopping and purchasing something on the way
+                                    break
+                                elif checkRecBorderEvent(userplaces, mod1, pt1, pp1, pos, start, end, mod2, st2, sp2, ):
+                                    fe = FlexEvent(user,category,mod1, start-timedelta(seconds=1800), userplaces[pp1], start, poss, mod2, end, end+timedelta(seconds=1800), userplaces[sp2], constructiontype = 'RecBorderEvent')
+                                    eventnr +=1
+                                    dump[eventnr]=fe.serialize()
+                                    if not goon:
+                                        if str(eventnr) in exdata.keys():
+                                            break
+                                        else:
+                                            goon = True
+                                    fe.map(eventnr)
+                                    getAffordances(user, eventnr, userplaces[pp1]['geo'], start-timedelta(seconds=1800), mod1,  userplaces[sp2]['geo'], end+timedelta(seconds=1800), mod2, int(float(eventduration)), sidx,ids, outlets, cat)
 
-                        lastrow = row
-        det = str(len(dump.keys()))
-        print det+' flexible events detected for user ' + str(user)
-        userswithresults.append(user)
-        dump['nodetevs']=det
-        if goon:
-            with open(store, 'w') as fp:
-                json.dump(dump, fp)
-            fp.close
+                            lastrow = row
+            det = str(len(dump.keys()))
+            print det+' flexible events detected for user ' + str(user)
+            userswithresults.append(user)
+            dump['nodetevs']=det
+            if goon:
+                with open(store, 'w') as fp:
+                    json.dump(dump, fp)
+                fp.close
 
 
         #break
