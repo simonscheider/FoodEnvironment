@@ -873,7 +873,10 @@ def constructRecordedEvents(trips,places,outletdata,recordedevents, overwrite = 
                 category = row['type of outlet of purchase']
                 if category != np.nan:
                     #if row['LOCATIE'].split(';')[0] != '999':
+                        if not isinstance(category,basestring):
+                            category = str(category)
                         category = category.encode('utf-8').strip()
+                        print category
                         if category== 'Supermarkt': #Shop outlets
                                         sidx,ids, outlets,cat = outletdata[4],outletdata[5],outletdata[6],outletdata[7]
                                         print 'SHOP  event'
