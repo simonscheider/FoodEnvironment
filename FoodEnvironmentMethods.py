@@ -12,6 +12,7 @@
 # Licence:     MIT license
 #-----------------------------------------------------------------------------
 import csv, sys
+import glob
 import time
 import requests
 import random
@@ -792,7 +793,7 @@ def loadRecords(recordedevents, usersample):
     print userlist
     return out
 
-"""This function checks whether recorded event is within two consecutive framing trips based on space and time"""
+"""This function checks whether recorded event is between two consecutive framing trips based on  time"""
 def checkRecEvent(userplaces, mod1, sp1, pt1, pp1, pos, start, end, mod2, st2, pp2):
     maxeventduration = (st2 -  pt1 ).total_seconds()
     eventduration = (end - start).total_seconds()
@@ -813,7 +814,7 @@ def checkRecEvent(userplaces, mod1, sp1, pt1, pp1, pos, start, end, mod2, st2, p
     return out
                     #print "distance 1:" +str(ep.distance(tp1))
 
-"""This function checks whether recorded event is within two consecutive framing trips only based on stoppingtime"""
+"""This function checks whether recorded event is between two consecutive trips which are not framing the event (might belong to other events), and thus might only border the trip to the event (not recorded)"""
 def checkRecBorderEvent(userplaces, mod1, pt1, pp1, pos, start, end, mod2, st2, sp2):
     maxeventduration = (st2 -  pt1 ).total_seconds()
     eventduration = (end - start).total_seconds()
@@ -958,24 +959,116 @@ def constructRecordedEvents(trips,places,outletdata,recordedevents, overwrite = 
 
 
 
+def summarystats():
+    search = os.path.join(results,"*"+"Recevents.json")
+    files = glob.glob(search)
+
+    out1 = os.path.join(results,"evstats.csv")
+    out2 = os.path.join(results,"stats.csv")
+    evdf = pd.DataFrame(columns=['user','event','category','constype', 'mode1', 'mode2', 'nooutlets'])
+    df = pd.DataFrame(columns=['user', 'evdetected', 'evrecorded', 'aspaceH', 'aspaceS', 'bufferH', 'bufferS', 'afoH', 'afoS', 'bufferaspaceSJacc', 'bufferaspaceHJacc', 'afobufferSJacc', 'afobufferHJacc', 'afoaspaceSJacc', 'afoaspaceHJacc'])
+    for f in files:
+        try:
+                data = json.load(open(f, 'r'))
+        except IOError:
+            pass
+        user = os.path.basename(f).split('Recevents.')[0]
+        withinuserfiles = os.path.join(results,user)
+        noevents = int(data['nodetevs']) -1
+        norecorded = int(data['norecevs']) -1
+        afoS = [] # list of event frames for shop
+        afoH = [] # list of event frames for horeca
+        aspaceshop = os.path.join(withinuserfiles, 'aSpaceSHOP.csv')
+        aspacehoreca = os.path.join(withinuserfiles, 'aSpaceHORECA.csv')
+        buffershop = os.path.join(withinuserfiles, 'bufferSHOP.csv')
+        bufferhoreca = os.path.join(withinuserfiles, 'bufferHORECA.csv')
+        aspaceshopl = csvfilelength(aspaceshop)
+        aspacehorecal = csvfilelength(aspacehoreca)
+        buffershopl = csvfilelength(buffershop)
+        bufferhorecal = csvfilelength(bufferhoreca)
+        for i in range(1,noevents+1):
+            ev = data[str(i)]
+            cat = ev['category']
+            constype = ev['constype']
+            modes = [ev['trip1']['mod1'] , ev['trip2']['mod2']]
+            print user, i
+            afofile = os.path.join(withinuserfiles, str(i)+'afo.csv')
+            length = csvfilelength(afofile)
+            if length>0:
+                if cat == "Supermarkt":
+                        afoS.append(pd.read_csv(afofile,  header=None, index_col= 0))
+                else:
+                        afoH.append(pd.read_csv( afofile,  header=None, index_col= 0))
+            #print afodf[2].value_counts()
+            evdf = evdf.append({ 'user': user.encode('utf-8'),'event' : i,'category' : cat.encode('utf-8'),'constype' : constype.encode('utf-8'), 'mode1' : ev['trip1']['mod1'], 'mode2' :ev['trip2']['mod2'] , 'nooutlets' : length }, ignore_index=True)
+        afoS = (pd.concat(afoS).drop_duplicates() if afoS !=[] else None)
+        afoH = (pd.concat(afoH).drop_duplicates() if afoH !=[] else None)
+        df = df.append({ 'user': user.encode('utf-8'), 'evdetected' : noevents, 'evrecorded': norecorded,
+        'aspaceH': aspacehorecal, 'aspaceS': aspaceshopl, 'bufferH':bufferhorecal, 'bufferS': buffershopl, 'afoH': (len(afoH) if afoH is not None else 0), 'afoS': (len(afoS) if afoS is not None else 0),
+        'bufferaspaceSJacc': (0 if (buffershopl ==0 or aspaceshopl ==0) else jaccard(readLocatusIds(aspaceshop),readLocatusIds(buffershop))),
+        'bufferaspaceHJacc': (0 if (bufferhorecal ==0 or aspacehorecal==0) else jaccard(readLocatusIds(aspacehoreca),readLocatusIds(bufferhoreca))),
+        'afobufferSJacc': (0 if (afoS is None or buffershopl==0) else jaccard(afoS.index,readLocatusIds(buffershop))),
+        'afobufferHJacc': (0 if (afoH is None or bufferhorecal==0) else jaccard(afoH.index,readLocatusIds(bufferhoreca))),
+        'afoaspaceSJacc': (0 if (afoS is None or aspaceshopl==0) else jaccard(afoS.index,readLocatusIds(aspaceshop))),
+        'afoaspaceHJacc': (0 if (afoH is None  or aspacehorecal==0) else jaccard(afoH.index,readLocatusIds(aspacehoreca))),
+        }, ignore_index=True)
+        df[['evdetected','evrecorded', 'aspaceH', 'aspaceS', 'bufferH', 'bufferS','bufferaspaceSJacc', 'bufferaspaceHJacc', 'afobufferSJacc', 'afobufferHJacc', 'afoaspaceSJacc', 'afoaspaceHJacc']] = df[['evdetected','evrecorded', 'aspaceH', 'aspaceS', 'bufferH', 'bufferS','bufferaspaceSJacc', 'bufferaspaceHJacc', 'afobufferSJacc', 'afobufferHJacc', 'afoaspaceSJacc', 'afoaspaceHJacc']].astype(int)
+
+    evdf.to_csv(out1)
+    df.to_csv(out2)
+
+
+def csvfilelength(file):
+     if os.path.isfile(file) and os.path.getsize(file) > 0:
+                length = int(len(pd.read_csv( file,  header=None, index_col= 0)))
+     else:
+                length = 0
+     return length
+
+def readLocatusIds(file):
+    if os.path.isfile(file):
+        f = pd.read_csv( file,  header=None, index_col= 0)
+        #print f.first_valid_index()
+        return f.index
+
+def jaccard(file1, file2):
+    #ids1 = readLocatusIds(file1)
+    #ids2 = readLocatusIds(file2)
+    file1l = float(len(file1))
+    file2l = float(len(file2))
+    if file1 is not None and len(file1)>0 and file2 is not None and len(file2)>0:
+        inters =  float(len(file1.intersection(file2)))
+    else:
+        inters = 0.0
+    print "inters:" +str(inters) + " file1: " +str(file1l) +" file2: " +str(file2l)
+    jaccard = (0 if ((file1l-inters) +inters+  (file2l-inters)==0.0) else (inters/((file1l-inters) + inters+  (file2l-inters)))*100)
+    print jaccard
+    return jaccard
+
+
+
 
 
 
 results = r"C:\Users\schei008\surfdrive\Temp\FoodResults"
 def main():
       #print  getActivityLabels(r"C:\Users\schei008\Dropbox\Schriften\Exchange\GOF\foodtracker\places.csv")
-    outletdata = loadOutlets()
-    places =r"C:\Users\schei008\Dropbox\Schriften\Exchange\GOF\foodtracker\places.csv"
-    trips = r"C:\Users\schei008\Dropbox\Schriften\Exchange\GOF\foodtracker\trips.csv"
-    usersample =r"C:\Users\schei008\Dropbox\Schriften\Exchange\GOF\foodtracker\Simon_start_stop_date_per_device_ID_cleaned.csv"
-    #recordedevents =r"C:\Users\schei008\Dropbox\Schriften\Exchange\GOF\foodtracker\SIMON_PURCHASES_INCOMPLETE_FILE.csv"
-    recordedevents =r"C:\Users\schei008\Dropbox\Schriften\Exchange\GOF\foodtracker\Purchases_total_inclTime_Simon.csv" # events with true purchase times
+##    outletdata = loadOutlets()
+##    places =r"C:\Users\schei008\Dropbox\Schriften\Exchange\GOF\foodtracker\places.csv"
+##    trips = r"C:\Users\schei008\Dropbox\Schriften\Exchange\GOF\foodtracker\trips.csv"
+##    usersample =r"C:\Users\schei008\Dropbox\Schriften\Exchange\GOF\foodtracker\Simon_start_stop_date_per_device_ID_cleaned.csv"
+##    ##recordedevents =r"C:\Users\schei008\Dropbox\Schriften\Exchange\GOF\foodtracker\SIMON_PURCHASES_INCOMPLETE_FILE.csv"
+##    recordedevents =r"C:\Users\schei008\Dropbox\Schriften\Exchange\GOF\foodtracker\Purchases_total_inclTime_Simon.csv" # events with true purchase times
+##
+##    pl = loadPlaces(places)
+##    tr = loadTrips(trips,usersample)
+##    ev = loadRecords(recordedevents,usersample)
+##    ##constructEvents(tr,pl,outletdata,tripeventsOn=True)
+##    constructRecordedEvents(tr,pl,outletdata,ev)
 
-    pl = loadPlaces(places)
-    tr = loadTrips(trips,usersample)
-    ev = loadRecords(recordedevents,usersample)
-    ##constructEvents(tr,pl,outletdata,tripeventsOn=True)
-    constructRecordedEvents(tr,pl,outletdata,ev)
+    summarystats()
+
+
 
 
 
@@ -1006,7 +1099,7 @@ def main():
 if __name__ == '__main__':
     start_time = time.time()
     #Logging into file
-    sys.stdout = open(os.path.join(results,'log.txt'), 'w')
+    #sys.stdout = open(os.path.join(results,'log.txt'), 'w')
     main()
     print("--- %s seconds ---" % (time.time() - start_time))
 
