@@ -962,7 +962,12 @@ def constructRecordedEvents(trips,places,outletdata,recordedevents, overwrite = 
 def summarystats():
     search = os.path.join(results,"*"+"Recevents.json")
     files = glob.glob(search)
-
+    allafoS = []
+    allafoH = []
+    allbufferS = []
+    allbufferH = []
+    allaspaceS = []
+    allaspaceH = []
     out1 = os.path.join(results,"evstats.csv")
     out2 = os.path.join(results,"stats.csv")
     evdf = pd.DataFrame(columns=['user','event','category','constype', 'mode1', 'mode2', 'nooutlets'])
@@ -996,13 +1001,53 @@ def summarystats():
             length = csvfilelength(afofile)
             if length>0:
                 if cat == "Supermarkt":
-                        afoS.append(pd.read_csv(afofile,  header=None, index_col= 0))
+                        afoS.append(pd.read_csv(afofile,  header=None, index_col= 0, encoding="utf-8"))
                 else:
-                        afoH.append(pd.read_csv( afofile,  header=None, index_col= 0))
+                        afoH.append(pd.read_csv( afofile,  header=None, index_col= 0, encoding="utf-8"))
             #print afodf[2].value_counts()
             evdf = evdf.append({ 'user': user.encode('utf-8'),'event' : i,'category' : cat.encode('utf-8'),'constype' : constype.encode('utf-8'), 'mode1' : ev['trip1']['mod1'], 'mode2' :ev['trip2']['mod2'] , 'nooutlets' : length }, ignore_index=True)
         afoS = (pd.concat(afoS).drop_duplicates() if afoS !=[] else None)
         afoH = (pd.concat(afoH).drop_duplicates() if afoH !=[] else None)
+        H = []
+        Hnames = []
+        S = []
+        Snames = []
+        if afoH is not None:
+            allafoH.append(afoH)
+            H.append(afoH)
+            Hnames.append('afoH')
+            #savediagrams(afoH, withinuserfiles, 'afoH')
+        if afoS is not None:
+            allafoS.append(afoS)
+            S.append(afoS)
+            Snames.append('afoS')
+            #savediagrams(afoS, withinuserfiles, 'afoS')
+        if csvfilelength(buffershop)>0:
+            bufferS = pd.read_csv(buffershop,  header=None, index_col= 0, encoding="utf-8")
+            allbufferS.append(bufferS)
+            S.append(bufferS)
+            Snames.append('bufferS')
+            #savediagrams(bufferS, withinuserfiles, 'bufferS')
+        if csvfilelength(bufferhoreca)>0:
+            bufferH = pd.read_csv(bufferhoreca,  header=None, index_col= 0, encoding="utf-8")
+            allbufferH.append(bufferH)
+            H.append(bufferH)
+            Hnames.append('bufferH')
+            #savediagrams(bufferH, withinuserfiles, 'bufferH')
+        if csvfilelength(aspaceshop)>0:
+            aspaceS = pd.read_csv(aspaceshop,  header=None, index_col= 0, encoding="utf-8")
+            allaspaceS.append(aspaceS)
+            S.append(aspaceS)
+            Snames.append('aspaceS')
+            #savediagrams(aspaceS, withinuserfiles, 'aspaceS')
+        if csvfilelength(aspacehoreca)>0:
+            aspaceH = pd.read_csv(aspacehoreca,  header=None, index_col= 0, encoding="utf-8")
+            allaspaceH.append(aspaceH)
+            H.append(aspaceH)
+            Hnames.append('aspaceH')
+            #savediagrams(aspaceH, withinuserfiles, 'aspaceH')
+        savediagrams(H, withinuserfiles, Hnames,'H')
+        savediagrams(S, withinuserfiles, Snames, 'S')
         df = df.append({ 'user': user.encode('utf-8'), 'evdetected' : noevents, 'evrecorded': norecorded,
         'aspaceH': aspacehorecal, 'aspaceS': aspaceshopl, 'bufferH':bufferhorecal, 'bufferS': buffershopl, 'afoH': (len(afoH) if afoH is not None else 0), 'afoS': (len(afoS) if afoS is not None else 0),
         'bufferaspaceSJacc': (0 if (buffershopl ==0 or aspaceshopl ==0) else jaccard(readLocatusIds(aspaceshop),readLocatusIds(buffershop))),
@@ -1014,6 +1059,18 @@ def summarystats():
         }, ignore_index=True)
         df[['evdetected','evrecorded', 'aspaceH', 'aspaceS', 'bufferH', 'bufferS','bufferaspaceSJacc', 'bufferaspaceHJacc', 'afobufferSJacc', 'afobufferHJacc', 'afoaspaceSJacc', 'afoaspaceHJacc']] = df[['evdetected','evrecorded', 'aspaceH', 'aspaceS', 'bufferH', 'bufferS','bufferaspaceSJacc', 'bufferaspaceHJacc', 'afobufferSJacc', 'afobufferHJacc', 'afoaspaceSJacc', 'afoaspaceHJacc']].astype(int)
 
+    saveplaces(pd.concat(allafoH).drop_duplicates(), name='allafoH')
+    #savediagrams(pd.concat(allafoH).drop_duplicates(), results, 'allafoH')
+    saveplaces(pd.concat(allafoS).drop_duplicates(), name='allafoS')
+    #savediagrams(pd.concat(allafoS).drop_duplicates(), results, 'allafoS')
+    saveplaces(pd.concat(allbufferS).drop_duplicates(), name='allbufferS')
+    #savediagrams(pd.concat(allbufferS), results, 'allbufferS')
+    saveplaces(pd.concat(allbufferH).drop_duplicates(), name='allbufferH')
+    #savediagrams(pd.concat(allbufferH), results, 'allbufferH')
+    saveplaces(pd.concat(allaspaceS).drop_duplicates(), name='allaspaceS')
+    #savediagrams(pd.concat(allaspaceS).drop_duplicates(), results, 'allaspaceS')
+    saveplaces(pd.concat(allaspaceH).drop_duplicates(), name='allaspaceH')
+    #savediagrams(pd.concat(allaspaceH).drop_duplicates(), results, 'allaspaceH')
     evdf.to_csv(out1)
     df.to_csv(out2)
 
@@ -1045,9 +1102,102 @@ def jaccard(file1, file2):
     print jaccard
     return jaccard
 
+from collections import Counter
+from PIL import Image
+from wordcloud import WordCloud
+import operator
+def wordcloud(dict):
+    #print sorted_c
+    wordcloud = WordCloud(background_color="white", min_font_size=5).fit_words(dict)
+    image = wordcloud.to_image()
+    return image
+
+def savediagrams(dfs, folder, names, cls):
+    sorted_cs = []
+    for index,name in enumerate(names):
+        savewc = os.path.join(folder,name+'wc.png')
+        if dfs[index] is not None:
+            dfs[index]['words'] =dfs[index].apply(lambda x: ((x[2].split('-'))[1]),axis=1)
+            wordlist = dfs[index]['words'].tolist()
+            c = {x:float(wordlist.count(x)) for x in wordlist}
+            sorted_c = sorted(c.items(), key=operator.itemgetter(1), reverse=True)
+            print folder+"/"+name
+            print len(wordlist)
+            sorted_cs.append(sorted_c)
+            #wc = wordcloud(c)
+            #wc.save(savewc)
+        else:
+            sorted_cs.append([])
+    barplot(sorted_cs, folder, names, cls)
+        #
 
 
 
+
+def saveplaces(afodf, name='afo'):
+    if afodf is not None:
+        save = os.path.join(results,name+'pl.shp')
+        schema = {
+            'geometry': 'Point',
+            'properties': {'id': 'int', 'label': 'str'},
+            }
+        # Write a new Shapefile
+        with fiona.open(save, 'w', 'ESRI Shapefile', schema) as c:
+            ## If there are multiple geometries, put the "for" loop here
+                for index, i in afodf.iterrows():
+                    c.write({
+                        'geometry': mapping(loads(i[1])),
+                        'properties': {'id': str(int(index)), 'label': (i[2])},
+                        })
+        c.close
+
+
+
+# libraries
+import numpy as np
+import matplotlib.pyplot as plt
+def barplot(dicts, folder, names, cls = 'H'):
+    out = os.path.join(folder,cls+'plt.png')
+    colors = [(0.3,0.1,0.4,0.6), (0.3,0.5,0.4,0.6), (0.3,0.9,0.4,0.6)]
+    barWidth = 0.35
+    length = len(names)
+    max = 8
+    plt.ylim(0,30)
+    r1 = []
+    dict1 = []
+    for index,name in enumerate(names):
+         dict = dicts[index]
+         if dict is not None:
+            total =  np.sum([i[1] for i in dict])
+            max = (len(dict) if len(dict)<8 else 8)
+            bars = [(float(i[1])/total)*100 for i in dict[0:max]]
+            n=index+1
+            r = []
+            for i in range(0,max):
+                r.append(n)
+                n = n+length
+            if index == 0:
+                r1 = r
+                dict1 = dict
+            plt.bar(r, bars, width=barWidth, color = colors[index], label=name)
+
+    #print bars
+
+    # Set position of bar on X axis
+    #r1 = [1,4,7,10,13,16,19,22]
+    #r2 = [2,5,8,11,14,17,20,23]
+    #r3 = [3,6,9,12,15,18,21,24]
+
+    # Make the plot
+
+    # Add xticks on the middle of the group bars
+    #plt.xlabel('group', fontweight='bold')
+    plt.xticks(r1, [i[0] for i in dict1[0:max]], rotation=20)
+
+    # Create legend & Show graphic
+    plt.legend()
+    plt.savefig(out)
+    plt.close()
 
 
 results = r"C:\Users\schei008\surfdrive\Temp\FoodResults"
