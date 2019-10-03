@@ -1046,8 +1046,8 @@ def summarystats():
             H.append(aspaceH)
             Hnames.append('aspaceH')
             #savediagrams(aspaceH, withinuserfiles, 'aspaceH')
-        savediagrams(H, withinuserfiles, Hnames,'H')
-        savediagrams(S, withinuserfiles, Snames, 'S')
+        #savediagrams(H, withinuserfiles, Hnames,'H')
+        #savediagrams(S, withinuserfiles, Snames, 'S')
         df = df.append({ 'user': user.encode('utf-8'), 'evdetected' : noevents, 'evrecorded': norecorded,
         'aspaceH': aspacehorecal, 'aspaceS': aspaceshopl, 'bufferH':bufferhorecal, 'bufferS': buffershopl, 'afoH': (len(afoH) if afoH is not None else 0), 'afoS': (len(afoS) if afoS is not None else 0),
         'bufferaspaceSJacc': (0 if (buffershopl ==0 or aspaceshopl ==0) else jaccard(readLocatusIds(aspaceshop),readLocatusIds(buffershop))),
@@ -1056,6 +1056,10 @@ def summarystats():
         'afobufferHJacc': (0 if (afoH is None or bufferhorecal==0) else jaccard(afoH.index,readLocatusIds(bufferhoreca))),
         'afoaspaceSJacc': (0 if (afoS is None or aspaceshopl==0) else jaccard(afoS.index,readLocatusIds(aspaceshop))),
         'afoaspaceHJacc': (0 if (afoH is None  or aspacehorecal==0) else jaccard(afoH.index,readLocatusIds(aspacehoreca))),
+        'afoaspaceHChi' : round((-1 if (afoH is None  or aspacehorecal==0) else ChiStest(afoH, 'afoH',aspaceH, 'aspaceH')),3),
+        'afoaspaceSChi' : round((-1 if (afoS is None  or aspaceshopl==0) else ChiStest(afoS, 'afoS',aspaceS, 'aspaceS')),3),
+        'afobufferHChi' : round((-1 if (afoH is None  or bufferhorecal==0) else ChiStest(afoH, 'afoH',bufferH, 'bufferH')),3),
+        'afobufferSChi' : round((-1 if (afoS is None  or buffershopl==0) else ChiStest(afoS, 'afoS',bufferS, 'bufferS')),3),
         }, ignore_index=True)
         df[['evdetected','evrecorded', 'aspaceH', 'aspaceS', 'bufferH', 'bufferS','bufferaspaceSJacc', 'bufferaspaceHJacc', 'afobufferSJacc', 'afobufferHJacc', 'afoaspaceSJacc', 'afoaspaceHJacc']] = df[['evdetected','evrecorded', 'aspaceH', 'aspaceS', 'bufferH', 'bufferS','bufferaspaceSJacc', 'bufferaspaceHJacc', 'afobufferSJacc', 'afobufferHJacc', 'afoaspaceSJacc', 'afoaspaceHJacc']].astype(int)
 
@@ -1098,9 +1102,33 @@ def jaccard(file1, file2):
     else:
         inters = 0.0
     print "inters:" +str(inters) + " file1: " +str(file1l) +" file2: " +str(file2l)
-    jaccard = (0 if ((file1l-inters) +inters+  (file2l-inters)==0.0) else (inters/((file1l-inters) + inters+  (file2l-inters)))*100)
+    jaccard = (0 if ((file1l-inters) +inters+  (file2l-inters)==0.0) else (inters/((file1l-inters) + inters+  (file2l-inters)))*100) #in percent
     print jaccard
     return jaccard
+
+import scipy.stats as stats
+def ChiStest(df1, name1, df2, name2):
+    df1['cat'] =df1.apply(lambda x: ((x[2].split('-'))[1]),axis=1)
+    df2['cat'] =df2.apply(lambda x: ((x[2].split('-'))[1]),axis=1)
+    c1 = (df1['cat']).value_counts().to_frame()
+    c2 = (df2['cat']).value_counts().to_frame()
+    contingencytable = (c1).join(c2, lsuffix=name1, rsuffix=name2).dropna()
+    contingencytable= contingencytable.rename(columns={'cat'+name1 : name1, 'cat'+name2 : name2})
+    print contingencytable
+    chi2_stat, p_val, dof, ex = stats.chi2_contingency(contingencytable)
+    return p_val
+##    print("===Chi2 Stat===")
+##    print(chi2_stat)
+##    print("\n")
+##    print("===Degrees of Freedom===")
+##    print(dof)
+##    print("\n")
+##    print("===P-Value===")
+##    print(p_val)
+##    print("\n")
+##    print("===Contingency Table===")
+##    print(ex)
+
 
 from collections import Counter
 from PIL import Image
@@ -1126,8 +1154,6 @@ def savediagrams(dfs, folder, names, cls):
             sorted_cs.append(sorted_c)
             #wc = wordcloud(c)
             #wc.save(savewc)
-        else:
-            sorted_cs.append([])
     barplot(sorted_cs, folder, names, cls)
         #
 
@@ -1162,15 +1188,22 @@ def barplot(dicts, folder, names, cls = 'H'):
     barWidth = 0.35
     length = len(names)
     max = 8
-    plt.ylim(0,30)
+    #plt.ylim(0,40)
     r1 = []
-    dict1 = []
+    cats = []
+    if len(dicts) > 0:
+        dict1 = dicts[0]
+        cats = [i[0] for i in dict1]
     for index,name in enumerate(names):
-         dict = dicts[index]
-         if dict is not None:
-            total =  np.sum([i[1] for i in dict])
-            max = (len(dict) if len(dict)<8 else 8)
-            bars = [(float(i[1])/total)*100 for i in dict[0:max]]
+         d = dicts[index]
+         print name
+         print cats
+         print d
+         dd =  { i:j for i,j in d }
+         if d is not None:
+            total =  np.sum([i[1] for i in d])
+            bars = [((float(dd[c])/total)*100 if c in dd.keys() else 0) for c in cats[0:max]]
+            print bars
             n=index+1
             r = []
             for i in range(0,max):
@@ -1178,7 +1211,6 @@ def barplot(dicts, folder, names, cls = 'H'):
                 n = n+length
             if index == 0:
                 r1 = r
-                dict1 = dict
             plt.bar(r, bars, width=barWidth, color = colors[index], label=name)
 
     #print bars
@@ -1192,10 +1224,11 @@ def barplot(dicts, folder, names, cls = 'H'):
 
     # Add xticks on the middle of the group bars
     #plt.xlabel('group', fontweight='bold')
-    plt.xticks(r1, [i[0] for i in dict1[0:max]], rotation=20)
+    plt.xticks(r1, cats, rotation=20)
 
     # Create legend & Show graphic
     plt.legend()
+    print out
     plt.savefig(out)
     plt.close()
 
