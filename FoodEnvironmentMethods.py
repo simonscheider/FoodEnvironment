@@ -40,6 +40,7 @@ import os
 
 
 
+
 """Functions for computing space-time outlet accessibility within a prism defined by a flexible event"""
 
 project = lambda x, y: pyproj.transform(pyproj.Proj(init='EPSG:4326'), pyproj.Proj(init='EPSG:28992'), x, y)
@@ -1181,6 +1182,7 @@ def saveplaces(afodf, name='afo'):
 
 # libraries
 import numpy as np
+import matplotlib
 import matplotlib.pyplot as plt
 def barplot(dicts, folder, names, cls = 'H'):
     out = os.path.join(folder,cls+'plt.png')
@@ -1233,6 +1235,47 @@ def barplot(dicts, folder, names, cls = 'H'):
     plt.close()
 
 
+def barplotsimple(bars, cats, folder, name):
+    out = os.path.join(folder,name+'plt.png')
+    pos = np.arange(len(bars))
+    plt.bar(pos, bars, color=(0.2, 0.4, 0.6, 0.6))
+    plt.xticks(pos, cats, rotation=20, ha='right',wrap=True)
+    for i,b in enumerate(bars):
+        plt.text(x=pos[i]+0.3 , y =bars[i]+0.2 , s=str(int(bars[i])))
+
+    # Create legend & Show graphic
+    plt.legend()
+    matplotlib.rcParams.update({'font.size': 20})
+
+    plt.tight_layout()
+    print out
+    plt.savefig(out)
+    plt.close()
+
+
+def summarizeEvents(eventfile):
+    events = pd.read_csv(eventfile,  header=0, index_col= 0, encoding="utf-8")
+    catcount = events['category'].value_counts().to_frame()
+    print catcount
+    conscount = events['constype'].value_counts().to_frame()
+    print conscount
+    modecount1 = events['mode1'].value_counts().to_frame()
+    modecount2 = events['mode2'].value_counts().to_frame()
+    modecount = modecount1.join(modecount2).fillna(0)
+    modecount['mode'] = (modecount['mode1']+modecount['mode2'])
+    #modecount['mode'] =  (modecount['mode']/modecount['mode'].sum())*100
+    print modecount
+    barplotsimple(modecount['mode'].values.tolist(), modecount.index.tolist(), results, 'mode')
+    barplotsimple(conscount['constype'].values.tolist(), conscount.index.tolist(), results, 'constype')
+    barplotsimple(catcount['category'].values.tolist(), catcount.index.tolist(), results, 'category')
+
+    #print modes
+
+    #bars = [((float(dd[c])/total)*100 if c in dd.keys() else 0) for c in cats[0:max]]
+
+
+
+
 results = r"C:\Users\schei008\surfdrive\Temp\FoodResults"
 def main():
       #print  getActivityLabels(r"C:\Users\schei008\Dropbox\Schriften\Exchange\GOF\foodtracker\places.csv")
@@ -1249,7 +1292,8 @@ def main():
 ##    ##constructEvents(tr,pl,outletdata,tripeventsOn=True)
 ##    constructRecordedEvents(tr,pl,outletdata,ev)
 
-    summarystats()
+    #summarystats()
+    summarizeEvents(os.path.join(results,'evstats.csv'))
 
 
 
