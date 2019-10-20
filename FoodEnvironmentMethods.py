@@ -39,7 +39,7 @@ from xlrd import open_workbook
 import os
 
 
-
+#--------------------------------------------------------------------------------------------------
 
 """Functions for computing space-time outlet accessibility within a prism defined by a flexible event"""
 
@@ -275,131 +275,74 @@ def saveOutlets(trips, save=r"C:\Users\schei008\Dropbox\Schriften\Exchange\GOF\r
     csvfile.close
 
 
-def loadOutlets(outletdata= r"C:\Users\schei008\surfdrive\Temp\Locatus\outlets.shp", colx = 1, coly = 2):
-    workbook = r"C:\Users\schei008\surfdrive\Temp\Locatus\Levensmiddel_Horeca_311217.xlsx"
-    w = open_workbook(workbook)
-    sheet = w.sheet_by_index(0)
-    print 'Loading outlets!'
-    outletsH = []  #Horeca
-    idsH = []
-    catH = []
-    outletsF = []  #Food
-    idsF = []
-    catF = []
-    for rowidx in range(1,sheet.nrows):
-            x = float(sheet.cell(rowidx, sheet.ncols - colx).value)
-            y = float(sheet.cell(rowidx, sheet.ncols - coly).value)
-            p = transform(project, Point(x,y))
-            category = sheet.cell(rowidx, 19).value
-            if (category.split('-')[0]).split('.')[0]== '59':
-                outletsH.append(p)
-                idsH.append(sheet.cell(rowidx, 0).value)
-                catH.append(category)
-            else:
-                outletsF.append(p)
-                idsF.append(sheet.cell(rowidx, 0).value)
-                catF.append(category)
-##    schema = {
-##        'geometry': 'Point',
-##        'properties': {'id': 'int'},
-##    }
-    sidxH = generate_index(outletsH)  #, os.path.dirname(outletdata)
-    sidxF = generate_index(outletsF)
-    #points = geopandas.GeoDataFrame.from_file(outletdata)
-    return (sidxH,idsH, outletsH, catH, sidxF,idsF, outletsF, catF)
-
-##    # Write a new Shapefile
-##    with fiona.open(outletdata, 'w', 'ESRI Shapefile', schema) as c:
-##        ## If there are multiple geometries, put the "for" loop here
-##        for id, g in enumerate(outlets):
-##            c.write({
-##                'geometry': mapping(g),
-##                'properties': {'id': ids[id]},
-##                })
-
-
-#see https://blog.maptiks.com/spatial-queries-in-python/
-def generate_index(records, index_path=None):
-    prop = rtree.index.Property()
-    if index_path is not None:
-        prop.storage = rtree.index.RT_Disk
-        prop.overwrite = index_path
-
-    sp_index = rtree.index.Index(index_path, properties=prop)
-    for n,g in enumerate(records):
-        if g is not None:
-
-            sp_index.insert(int(n), (g.x,g.y,g.x,g.y))
-    return sp_index
-
 
 
 #-----------------------------------------------------------------------------------------
 
 """Functions for generating and handling modifiable food events"""
 
-#This class captures modifiable food events consisting of: travel - food activity - travel
-class FlexEvent():
-    def __init__(self, user, category, mod1, st1, sp1, pt1, pp1, mod2, st2, pt2, pp2, constructiontype = 'RecEvent'):
-         self.user = user
-         self.mod1 =mod1
-         self.st1 = st1
-         self.sp1= sp1
-         self.pt1 =pt1
-         self.pp1 =pp1
-         self.mod2 =mod2
-         self.st2 = st2
-         self.pt2 =pt2
-         self.pp2 =pp2
-         self.eventduration = (self.st2 -  self.pt1 ).total_seconds()
-         self.category = category #(self.pp1['label']).split(':')[0]
-         self.constype = constructiontype
-         print "Event: "+str(constructiontype)+" "+str(st1) +" "+ str(pt1) +" "+  str(st2)  +" "+ str(pt2)
-
-    def serialize(self):
-        return {
-         'user':str(self.user),
-         'trip1': {'mod1':str(self.mod1),
-         'starttime1':str(self.st1),
-         'startplace1': {'label':self.sp1['label'], 'geo':str(self.sp1['geo'])},
-         'stoptime1':str(self.pt1),
-         'stopplace1':{'label':self.pp1['label'], 'geo':str(self.pp1['geo'])}} ,
-          'trip2': {
-         'mod2':self.mod2,
-         'starttime2':str(self.st2),
-         'stoptime2':str(self.pt2),
-         'stopplace2':{'label':self.pp2['label'], 'geo':str(self.pp2['geo'])}},
-         'eventduration':str(self.eventduration),
-         'category':self.category,#).encode('utf-8').strip(),
-         'constype': self.constype#).encode('utf-8').strip()
-        }
-    def map(self, id):
-        newpath=os.path.join(results,str(self.user))
-        if not os.path.exists(newpath):
-            os.makedirs(newpath)
-
-        save = os.path.join(newpath,str(id)+".shp" )
-        schema = {
-            'geometry': 'Point',
-            'properties': { 'label':'str'},
-            }
-
-        # Write a new Shapefile
-        with fiona.open(save, 'w', 'ESRI Shapefile', schema) as c:
-            ## If there are multiple geometries, put the "for" loop here
-                    c.write({
-                        'geometry': mapping(transform(project,self.sp1['geo'])),
-                        'properties': {'label':self.sp1['label']},
-                        })
-                    c.write({
-                        'geometry': mapping(transform(project,self.pp1['geo'])),
-                        'properties': {'label':self.pp1['label']},
-                        })
-                    c.write({
-                        'geometry': mapping(transform(project,self.pp2['geo'])),
-                        'properties': {'label':self.pp2['label']},
-                        })
-        c.close
+###This class captures modifiable food events consisting of: travel - food activity - travel
+##class FlexEvent():
+##    def __init__(self, user, category, mod1, st1, sp1, pt1, pp1, mod2, st2, pt2, pp2, constructiontype = 'RecEvent'):
+##         self.user = user
+##         self.mod1 =mod1
+##         self.st1 = st1
+##         self.sp1= sp1
+##         self.pt1 =pt1
+##         self.pp1 =pp1
+##         self.mod2 =mod2
+##         self.st2 = st2
+##         self.pt2 =pt2
+##         self.pp2 =pp2
+##         self.eventduration = (self.st2 -  self.pt1 ).total_seconds()
+##         self.category = category #(self.pp1['label']).split(':')[0]
+##         self.constype = constructiontype
+##         print "Event: "+str(constructiontype)+" "+str(st1) +" "+ str(pt1) +" "+  str(st2)  +" "+ str(pt2)
+##
+##    def serialize(self):
+##        return {
+##         'user':str(self.user),
+##         'trip1': {'mod1':str(self.mod1),
+##         'starttime1':str(self.st1),
+##         'startplace1': {'label':self.sp1['label'], 'geo':str(self.sp1['geo'])},
+##         'stoptime1':str(self.pt1),
+##         'stopplace1':{'label':self.pp1['label'], 'geo':str(self.pp1['geo'])}} ,
+##          'trip2': {
+##         'mod2':self.mod2,
+##         'starttime2':str(self.st2),
+##         'stoptime2':str(self.pt2),
+##         'stopplace2':{'label':self.pp2['label'], 'geo':str(self.pp2['geo'])}},
+##         'eventduration':str(self.eventduration),
+##         'category':self.category,#).encode('utf-8').strip(),
+##         'constype': self.constype#).encode('utf-8').strip()
+##        }
+##    def map(self, id):
+##        newpath=os.path.join(results,str(self.user))
+##        if not os.path.exists(newpath):
+##            os.makedirs(newpath)
+##
+##        save = os.path.join(newpath,str(id)+".shp" )
+##        schema = {
+##            'geometry': 'Point',
+##            'properties': { 'label':'str'},
+##            }
+##
+##        # Write a new Shapefile
+##        with fiona.open(save, 'w', 'ESRI Shapefile', schema) as c:
+##            ## If there are multiple geometries, put the "for" loop here
+##                    c.write({
+##                        'geometry': mapping(transform(project,self.sp1['geo'])),
+##                        'properties': {'label':self.sp1['label']},
+##                        })
+##                    c.write({
+##                        'geometry': mapping(transform(project,self.pp1['geo'])),
+##                        'properties': {'label':self.pp1['label']},
+##                        })
+##                    c.write({
+##                        'geometry': mapping(transform(project,self.pp2['geo'])),
+##                        'properties': {'label':self.pp2['label']},
+##                        })
+##        c.close
 
 #This class is more tolerant and captures also single trip events (without goal activity)
 class FlexTrip():
@@ -451,348 +394,90 @@ class FlexTrip():
 
 
 
-"""Function for constructing fixed and flexible (food) events from a collection of trips"""
-def constructEvents(trips, places, outletdata, tripeventsOn):
-    for t in trips:
-        print t
-        track = t
-        user = str(t['deviceId'].iloc[0])
-        print user
-        userplaces = places[user]
-        #generating simple methods first:
-        activitySpace(user,userplaces,track, outletdata)
-        homeBuffer(user,userplaces, outletdata,'Bike')
-        activityMap(user, userplaces)
-        store = os.path.join(results,str(user)+"events.json")
-        lastrow = pd.Series()
-        dump = {}
-        eventnr = 0
-        print str(len(track))+ ' trips for this user in total!'
-        for index, row in track.iterrows():
-            if not lastrow.empty:
-                mod1, st1, sp1, pt1, pp1 =  getTripInfo(lastrow)
-                mod2, st2, sp2, pt2, pp2 =  getTripInfo(row)
-                category = (userplaces[pp1]['label']).split(':')[0]
-                if flexibleEvent(userplaces,mod1, st1, sp1, pt1, pp1, mod2, st2, sp2, pt2, pp2):
-                      fe = FlexEvent(user,category, mod1, st1, userplaces[sp1], pt1, userplaces[pp1], mod2, st2, pt2, userplaces[pp2])
-                      if category.split('_')[0]== 'FOOD': #Horeca outlets
-                        sidx,ids, outlets, cat = outletdata[0],outletdata[1],outletdata[2],outletdata[3]
-                        print 'simulated HORECA event'
-                      else:                                 #Shop outlets
-                        sidx,ids, outlets,cat = outletdata[4],outletdata[5],outletdata[6],outletdata[7]
-                        print 'simulated SHOP event'
-                      eventnr +=1
-                      fe.map(eventnr)
-                      dump[eventnr]=fe.serialize()
-                      getAffordances(user, eventnr, fe.sp1['geo'], fe.st1, fe.mod1, fe.pp2['geo'], fe.pt2, fe.mod2, int(float(fe.eventduration)), sidx,ids, outlets, cat)
-                elif tripeventsOn and flexibleTripEvent(userplaces,mod1, st1, sp1, pt1+timedelta(seconds=600), pp1, 600): #simulated Shop event within a single trip: 10 minutes, assuming 10 minutes more time
-                    fe = FlexTrip(user,mod1, st1, userplaces[sp1], pt1+timedelta(seconds=600), userplaces[pp1])
-                    sidx,ids, outlets,cat = outletdata[4],outletdata[5],outletdata[6],outletdata[7]
-                    print 'simulated SHOP trip'
-                    eventnr +=1
-                    fe.map(eventnr)
-                    dump[eventnr]=fe.serialize()
-                    getAffordances(user, eventnr, fe.sp1['geo'], fe.st1, fe.mod1, fe.pp1['geo'], fe.pt1, fe.mod1, 600, sidx,ids, outlets, cat)
-                elif tripeventsOn and flexibleTripEvent(userplaces,mod1, st1, sp1, pt1+timedelta(seconds=600), pp1, 1200): #simulated HORECA event within a single trip: 20 minutes, assuming 10 minutes more time
-                    fe = FlexTrip(user,mod1, st1, userplaces[sp1], pt1+timedelta(seconds=600), userplaces[pp1])
-                    sidx,ids, outlets, cat = outletdata[0],outletdata[1],outletdata[2],outletdata[3]
-                    print 'simulated HORECA trip'
-                    eventnr +=1
-                    fe.map(eventnr)
-                    dump[eventnr]=fe.serialize()
-                    getAffordances(user, eventnr, fe.sp1['geo'], fe.st1, fe.mod1, fe.pp1['geo'], fe.pt1, fe.mod1, 1200, sidx,ids, outlets, cat)
-                else:
-                    print "not a flexible event!"
-            lastrow  =row
+##"""Function for constructing fixed and flexible (food) events from a collection of trips"""
+##def constructEvents(trips, places, outletdata, tripeventsOn):
+##    for t in trips:
+##        print t
+##        track = t
+##        user = str(t['deviceId'].iloc[0])
+##        print user
+##        userplaces = places[user]
+##        #generating simple methods first:
+##        activitySpace(user,userplaces,track, outletdata)
+##        homeBuffer(user,userplaces, outletdata,'Bike')
+##        activityMap(user, userplaces)
+##        store = os.path.join(results,str(user)+"events.json")
+##        lastrow = pd.Series()
+##        dump = {}
+##        eventnr = 0
+##        print str(len(track))+ ' trips for this user in total!'
+##        for index, row in track.iterrows():
+##            if not lastrow.empty:
+##                mod1, st1, sp1, pt1, pp1 =  getTripInfo(lastrow)
+##                mod2, st2, sp2, pt2, pp2 =  getTripInfo(row)
+##                category = (userplaces[pp1]['label']).split(':')[0]
+##                if flexibleEvent(userplaces,mod1, st1, sp1, pt1, pp1, mod2, st2, sp2, pt2, pp2):
+##                      fe = FlexEvent(user,category, mod1, st1, userplaces[sp1], pt1, userplaces[pp1], mod2, st2, pt2, userplaces[pp2])
+##                      if category.split('_')[0]== 'FOOD': #Horeca outlets
+##                        sidx,ids, outlets, cat = outletdata[0],outletdata[1],outletdata[2],outletdata[3]
+##                        print 'simulated HORECA event'
+##                      else:                                 #Shop outlets
+##                        sidx,ids, outlets,cat = outletdata[4],outletdata[5],outletdata[6],outletdata[7]
+##                        print 'simulated SHOP event'
+##                      eventnr +=1
+##                      fe.map(eventnr)
+##                      dump[eventnr]=fe.serialize()
+##                      getAffordances(user, eventnr, fe.sp1['geo'], fe.st1, fe.mod1, fe.pp2['geo'], fe.pt2, fe.mod2, int(float(fe.eventduration)), sidx,ids, outlets, cat)
+##                elif tripeventsOn and flexibleTripEvent(userplaces,mod1, st1, sp1, pt1+timedelta(seconds=600), pp1, 600): #simulated Shop event within a single trip: 10 minutes, assuming 10 minutes more time
+##                    fe = FlexTrip(user,mod1, st1, userplaces[sp1], pt1+timedelta(seconds=600), userplaces[pp1])
+##                    sidx,ids, outlets,cat = outletdata[4],outletdata[5],outletdata[6],outletdata[7]
+##                    print 'simulated SHOP trip'
+##                    eventnr +=1
+##                    fe.map(eventnr)
+##                    dump[eventnr]=fe.serialize()
+##                    getAffordances(user, eventnr, fe.sp1['geo'], fe.st1, fe.mod1, fe.pp1['geo'], fe.pt1, fe.mod1, 600, sidx,ids, outlets, cat)
+##                elif tripeventsOn and flexibleTripEvent(userplaces,mod1, st1, sp1, pt1+timedelta(seconds=600), pp1, 1200): #simulated HORECA event within a single trip: 20 minutes, assuming 10 minutes more time
+##                    fe = FlexTrip(user,mod1, st1, userplaces[sp1], pt1+timedelta(seconds=600), userplaces[pp1])
+##                    sidx,ids, outlets, cat = outletdata[0],outletdata[1],outletdata[2],outletdata[3]
+##                    print 'simulated HORECA trip'
+##                    eventnr +=1
+##                    fe.map(eventnr)
+##                    dump[eventnr]=fe.serialize()
+##                    getAffordances(user, eventnr, fe.sp1['geo'], fe.st1, fe.mod1, fe.pp1['geo'], fe.pt1, fe.mod1, 1200, sidx,ids, outlets, cat)
+##                else:
+##                    print "not a flexible event!"
+##            lastrow  =row
+##
+##        print str(len(dump.keys()))+' flexible events detected for user ' + str(user)
+##        with open(store, 'w') as fp:
+##            json.dump(dump, fp)
+##        fp.close
 
-        print str(len(dump.keys()))+' flexible events detected for user ' + str(user)
-        with open(store, 'w') as fp:
-            json.dump(dump, fp)
-        fp.close
+##def flexibleEvent(userplaces,mod1, st1, sp1, pt1, pp1, mod2, st2, sp2, pt2, pp2):
+##    maxeventduration = (st2 -  pt1 ).total_seconds()
+##    if sp1 in userplaces.keys() and pp1 in userplaces.keys() and sp2 in userplaces.keys() and pp2 in userplaces.keys(): #Places available in place set?
+##        if  pp1 == sp2:
+##            if  maxeventduration < 2*3600:
+##                category = (userplaces[pp1]['label']).split(':')[0]
+##                if category in foodOutletLabels:
+##                    if mod1 != "":
+##                        return True
+##                    else:
+##                        print 'modus 1 not available'
+##                        return False
+##                else:
+##                    print 'place category not in foodlabels'
+##                    return False
+##            else:
+##                print 'beyond maxeventduration'
+##                return False
+##        else:
+##            print 'stopplace 1 != startplace 2'
+##            return False
+##    else:
+##        print 'place not in userplaces!'
+##        return False
 
-
-def activityMap(user, places):
-    save=os.path.join(results,str(user)+"places.shp")
-    schema = {
-        'geometry': 'Point',
-        'properties': {'id': 'int', 'label':'str'},
-        }
-
-    # Write a new Shapefile
-    with fiona.open(save, 'w', 'ESRI Shapefile', schema) as c:
-        ## If there are multiple geometries, put the "for" loop here
-            for place in places.keys():
-                c.write({
-                    'geometry': mapping(transform(project,places[place]['geo'])),
-                    'properties': {'id': place, 'label':places[place]['label']},
-                    })
-    c.close
-
-
-
-def flexibleEvent(userplaces,mod1, st1, sp1, pt1, pp1, mod2, st2, sp2, pt2, pp2):
-    maxeventduration = (st2 -  pt1 ).total_seconds()
-    if sp1 in userplaces.keys() and pp1 in userplaces.keys() and sp2 in userplaces.keys() and pp2 in userplaces.keys(): #Places available in place set?
-        if  pp1 == sp2:
-            if  maxeventduration < 2*3600:
-                category = (userplaces[pp1]['label']).split(':')[0]
-                if category in foodOutletLabels:
-                    if mod1 != "":
-                        return True
-                    else:
-                        print 'modus 1 not available'
-                        return False
-                else:
-                    print 'place category not in foodlabels'
-                    return False
-            else:
-                print 'beyond maxeventduration'
-                return False
-        else:
-            print 'stopplace 1 != startplace 2'
-            return False
-    else:
-        print 'place not in userplaces!'
-        return False
-
-def flexibleTripEvent(userplaces,mod1, st1, sp1, pt1, pp1, eventduration):
-    tripduration = ( pt1 - st1).total_seconds()
-    if sp1 in userplaces.keys() and pp1 in userplaces.keys(): #Places available in place set?
-            if  tripduration >= eventduration: #trip must at least last for eventduration + 1 minutes to enable food event
-                #category = (userplaces[pp1]['label']).split(':')[0]
-                #if category in foodOutletLabels:
-                    if mod1 != "":
-                        return True
-                    else:
-                        print 'modus 1 not available'
-                        return False
-                #else:
-                #    print 'place category not in foodlabels'
-                #    return False
-            else:
-                print 'beyond tripduration'
-                return False
-    else:
-        print 'place not in userplaces!'
-        return False
-
-def getTripInfo(row):
-    return row['modality'],dateparse(row['startTime']), cn(row['startPlaceId']), dateparse(row['stopTime']),cn(row['stopPlaceId'])
-
-def cn(n):
-    if str(n) != 'nan':
-        return str(int(n))
-    else:
-        return None
-
-def getActivityLabels(csvfile):
-    ls = []
-    with open(csvfile, 'rb') as csvfile:
-        reader = csv.reader(csvfile, delimiter=',', quotechar='"')
-        for row in reader:
-         ls.append(row[2].split(':')[0])
-    return set(ls)
-
-   # set(['SHOP_GIFT', 'LANDUSE_CONIFEROUSDECIDUOUS', 'SHOP_SUPERMARKET', 'SHOP_HEARINGAIDS', 'POI_EMBASSY', 'TRANSPORT_SUBWAY', 'TOURIST_WINDMILL', 'SHOP_MOTORCYCLE', 'ACCOMMO_CHALET', 'FOOD_PUB', 'EDUCATION_COLLEGE', 'MONEY_EXCHANGE', 'SHOP_BICYCLE', 'SHOP_HAIRDRESSER', 'TOURIST_INFORMATION', 'POI_HAMLET', 'SHOP_TOYS', 'AMENITY_POSTOFFICE', 'SHOP_MUSIC', 'name', 'LANDUSE_ALLOTMENTS', 'TRANSPORT_TERMINAL', 'POI_CRANE', 'SHOP_GARDENCENTRE', 'TOURIST_BEACH', 'TOURIST_CASTLE2', 'FOOD_FASTFOOD', 'AMENITY_PUBLICBUILDING', 'SPORT_BASKETBALL', 'TRANSPORT_FUEL', 'ACCOMMO_CAMPING', 'SPORT_MOTORRACING', 'SHOP_LAUNDRETTE', 'SHOP_PET', 'SPORT_SWIMMING', 'POW_JEWISH', 'SHOP_GREENGROCER', 'SHOP_ALCOHOL', 'SHOP_NEWSPAPER', 'TOURIST_THEMEPARK', 'SPORT_TENNIS', 'AMENITY_PLAYGROUND', 'EDUCATION_NURSERY', 'POI_TOWERLOOKOUT', 'SHOP_COPYSHOP', 'Work', 'ACCOMMO_HOSTEL', 'TOURIST_MONUMENT', 'BARRIER_BLOCKS', 'SPORT_CLIMBING', 'SHOP_CAR', 'POI_TOWN', 'POW_BUDDHIST', 'SHOP_FLORIST', 'HEALTH_PHARMACY', 'SHOP_CONFECTIONERY', 'SHOP_FISH', 'SPORT_SOCCER', 'HEALTH_HOSPITAL', 'Home', 'TOURIST_CINEMA', 'POW_CHRISTIAN', 'SHOP_VENDINGMASCHINE', 'FOOD_CAFE', 'TOURIST_ATTRACTION', 'FOOD_BAR', 'TOURIST_MEMORIAL', 'WATER_TOWER', 'EDUCATION_SCHOOL', 'SHOP_BAKERY', 'TOURIST_FOUNTAIN', 'TOURIST_ART', 'TRANSPORT_STATION', 'SHOP_PHONE', 'MONEY_BANK', 'FOOD_ICECREAM', 'LANDUSE_QUARY', 'ACCOMMO_HOTEL', 'SHOP_COMPUTER', 'AMENITY_FIRESTATION', 'AMENITY_TOWNHALL', 'AMENITY_PRISON', 'TOURIST_ZOO', 'HEALTH_DOCTORS', 'AMENITY_LIBRARY', 'SHOP_BOOK', 'TOURIST_THEATRE', 'SPORT_GYM', 'SHOP_DIY', 'TRANSPORT_RENTALCAR', 'TRANSPORT_BUSSTOP', 'LANDUSE_MILITARY', 'SPORT_LEISURECENTER', 'TOURIST_ARCHAELOGICAL', 'TOURIST_NIGHTCLUB', 'SPORT_ICESKATING', 'Other', 'SHOP_TOBACCO', 'EDUCATION_UNIVERSITY', 'SPORT_BASEBALL', 'POW_ISLAMIC', 'TOURIST_CASTLE', 'SHOP_CONVENIENCE', 'SHOP_MARKETPLACE', 'SHOP_KIOSK', 'SHOP_CARREPAIR', 'SHOP_SHOES', 'AMENITY_POLICE', 'SHOP_CLOTHES', 'SHOP_BUTCHER', 'LANDUSE_GRASS', 'SPORT_SKIINGDOWNHILL', 'TOURIST_MUSEUM', 'POW_HINDU', 'SHOP_HIFI', 'HEALTH_DENTIST', 'FOOD_RESTAURANT', 'SPORT_STADIUM', 'POI_VILLAGE', 'SHOP_JEWELRY', 'SHOP_DEPARTMENTSTORE', 'TRANSPORT_TRAMSTOP', 'AMENITY_COURT', 'SPORT_SKATING'])
-
-foodOutletLabels = ['SHOP_GREENGROCER', 'SHOP_ALCOHOL' ,'SHOP_SUPERMARKET','FOOD_PUB', 'FOOD_FASTFOOD', 'SHOP_CONFECTIONERY', 'SHOP_FISH', 'FOOD_CAFE', 'FOOD_BAR', 'SHOP_BAKERY', 'FOOD_ICECREAM', 'SHOP_TOBACCO','SHOP_CONVENIENCE', 'SHOP_MARKETPLACE', 'SHOP_KIOSK' ,'SHOP_BUTCHER', 'FOOD_RESTAURANT']
-#Take the actual eventtime and assume all outlets can be visited within this time
-#modifierabletransportevents = [eventime <<< timewindow]
-
-def loadPlaces(places):
-    ls = {}
-    with open(places, 'rb') as csvfile:
-        reader = csv.reader(csvfile, delimiter=',', quotechar='"')
-        next(reader) #First line skipped
-        for row in reader:
-            user = row[1]
-            place = row[0]
-            if user not in  ls.keys():
-                ls[user]={place:{'label':row[2], 'geo': loads(row[4])}}
-
-            else:
-                ls[user][place] = {'label':row[2], 'geo': loads(row[4])}
-
-    csvfile.close
-    #print ls
-    return ls
-
-def dateparse (timestamp):
-        return pd.datetime.strptime(timestamp, '%Y-%m-%d %H:%M:%S.%f')
-def dateparse2 (timestamp):
-    if isinstance(timestamp,basestring):
-        return pd.datetime.strptime(timestamp, '%d-%m-%Y %H:%M')
-    else:
-        return timestamp
-def dateparse3 (date, time):
-    #'26-apr-18 12:35'
-    date = date.replace('mei', 'may')
-    return pd.datetime.strptime(date +' '+time, '%d-%b-%y %H:%M')
-
-
-def loadTrips(trips, usersample):
-    #headers = ['deviceId','modality','distance','startTime','stopTime','startCountry','startPc','startCity','startStreet','stopCountry','stopPc','stopCity','stopStreet','startPlaceId','stopPlaceId']
-    #dtypes = [str, str, int, datetime, datetime, str, str, str, str,str,str,str,str,int,int]
-
-    #dateCols = ['startTime','stopTime']
-    tr = pd.read_csv(trips, sep=',', parse_dates=True, date_parser=dateparse,  encoding="utf-8-sig")
-    #tr = pd.read_csv(trips)
-
-    #print tr.keys()
-    users= pd.read_csv(usersample, sep=';', parse_dates=True, date_parser=dateparse,  encoding="utf-8-sig")
-    #print users['include']
-    validids = users[users['include']==True]
-    #print validids.keys()
-    #print validids
-    out = {}
-
-    for index, row in validids.iterrows():
-        #print row
-        id = row['DeviceID']
-        ti1 = datetime.strptime(row[u'START DATE'],'%Y-%m-%d')
-        ti2 = datetime.strptime(row['END DATE ']+'T23:59:00','%Y-%m-%dT%H:%M:%S')
-        print 'user: ',id, ti1, ti2
-        usertrack =tr[tr['deviceId']== id ] #and
-        usertrack =usertrack[usertrack['startTime'].apply(lambda x: dateparse(x) >=ti1 and dateparse(x) <=ti2)]
-        out[str(int(id))]=usertrack
-        #break
-
-    #ti1 = datetime.strptime("2016-10-25T12:00:00",'%Y-%m-%dT%H:%M:%S')
-    #ti2 =  datetime.strptime("2016-10-30T23:50:00",'%Y-%m-%dT%H:%M:%S')
-    #tr = tr[tr['startTime'].apply(lambda x: dateparse(x) >=ti1 and dateparse(x) <=ti2)]
-    #tr = list(tr.groupby('deviceId'))
-    print 'number of users with trips: '+ str(len(out.keys()))
-    print out.keys()
-    return out
-
-
-#-------------------------------------------Simple methods
-
-def homeBuffer(user,userplaces, outletdata, mode):
-    home = None
-    print "Home buffers are generated"
-    availabletime = 1800 #30 minutes from home buffer
-    if mode =='Bike':
-        print 'bike modeled by 3 times foot!'
-        availabletime  = ((availabletime)*3)  #In order to compensate for missing bike mode we use the pedestrian mode and give it 4  times more time
-
-    mode=convertMode(mode)          #This is needed because there are only car and predestrian modes available
-
-    newpath =os.path.join(results,user)
-    if not os.path.exists(newpath):
-        os.makedirs(newpath)
-    for p in userplaces.values():
-        if p['label']=='Home':
-            home = p['geo']
-            break
-    if home !=None:
-        poly = transform(project, getisoline(home,availabletime, mode = mode)) #assuming the car default
-        sidx,ids, outlets, cat = outletdata[0],outletdata[1],outletdata[2],outletdata[3]
-        if poly.is_empty:
-            print "Prism empty! No buffer outlets selected"
-        else:
-            print 'simulated HORECA buffer'
-            candidates, candidateids, candidatecats = getPrismOutlets(poly, sidx,ids, outlets, cat)
-            saveOutlets([[candidateids[i],candidates[i],candidatecats[i]] for i,v in enumerate(candidates)], save=os.path.join(newpath,"bufferHORECA.shp"))
-                                     #Shop outlets
-            sidx,ids, outlets,cat = outletdata[4],outletdata[5],outletdata[6],outletdata[7]
-            print 'simulated SHOP buffer'
-            candidates, candidateids, candidatecats = getPrismOutlets(poly, sidx,ids, outlets, cat)
-            saveOutlets([[candidateids[i],candidates[i],candidatecats[i]] for i,v in enumerate(candidates)], save=os.path.join(newpath,"bufferSHOP.shp"))
-    else:
-        print "no home location for generating home buffer!"
-
-
-def activitySpace(user,userplaces,track, outletdata):
-     newpath =os.path.join(results,user)
-     if not os.path.exists(newpath):
-        os.makedirs(newpath)
-     lines = []
-     for index, row in track.iterrows():
-                mod, st, sp, pt, pp =  getTripInfo(row)
-                if sp in userplaces.keys() and pp in userplaces.keys():
-                    frompl =  userplaces[sp]
-                    topl = userplaces[pp]
-                    lines.append(LineString([transform(project,frompl['geo']), transform(project,topl['geo'])]))
-     #print lines #transform(project, transform(project,
-     multiline = MultiLineString(lines)
-     linestringbuffer = shape(multiline).buffer(100)
-     #print linestringbuffer
-     save = os.path.join(newpath,"aspace.shp" )
-     schema = {
-            'geometry': 'Polygon',
-            'properties': { 'user':'str'},
-            }
-
-        # Write a new Shapefile
-     with fiona.open(save, 'w', 'ESRI Shapefile', schema) as c:
-            ## If there are multiple geometries, put the "for" loop here
-                    c.write({
-                        'geometry': mapping(linestringbuffer),
-                        'properties': {'user':str(user)},
-                        })
-
-
-     c.close
-     sidx,ids, outlets, cat = outletdata[0],outletdata[1],outletdata[2],outletdata[3]
-     if linestringbuffer.is_empty:
-        print "Linestringbuffer empty! No outlets selected"
-     else:
-         print 'simulated HORECA aSpace'
-         candidates, candidateids, candidatecats = getPrismOutlets(linestringbuffer, sidx,ids, outlets, cat)
-         saveOutlets([[candidateids[i],candidates[i],candidatecats[i]] for i,v in enumerate(candidates)], save=os.path.join(newpath,"aSpaceHORECA.shp"))
-                                         #Shop outlets
-         sidx,ids, outlets,cat = outletdata[4],outletdata[5],outletdata[6],outletdata[7]
-         print 'simulated SHOP aSpace'
-         candidates, candidateids, candidatecats = getPrismOutlets(linestringbuffer, sidx,ids, outlets, cat)
-         saveOutlets([[candidateids[i],candidates[i],candidatecats[i]] for i,v in enumerate(candidates)], save=os.path.join(newpath,"aSpaceSHOP.shp"))
-
-
-def loadRecords(recordedevents, usersample):
-    ev = pd.read_csv(recordedevents, sep=';', parse_dates=True, date_parser=dateparse,  encoding="utf-8-sig")
-
-        #print tr.keys()
-    users= pd.read_csv(usersample, sep=';', parse_dates=True, date_parser=dateparse,  encoding="utf-8-sig")
-    #print users['include']
-    validids = users[users['include']==True]
-    #print validids.keys()
-    #print validids
-    out = []
-    userlist = []
-
-    for index, row in validids.iterrows():
-        #print row
-        id = row['DeviceID']
-        ti1 = datetime.strptime(row[u'START DATE'],'%Y-%m-%d')
-        ti2 = datetime.strptime(row['END DATE ']+'T23:59:00','%Y-%m-%dT%H:%M:%S')
-        #print 'user: ',id, ti1, ti2
-        userevents =ev[ev['DEVICECODE']== id ] #and
-        #userevents =userevents[userevents['Start date'].apply(lambda x: dateparse2(x) >=ti1 and dateparse2(x) <=ti2)]
-        #userevents = userevents[['VoterID','Start date','End date', 'DEVICECODE','type of outlet of purchase', 'LOCATIE']].drop_duplicates()
-        userevents = userevents[['VoterID','date_of_purchase', 'time_of_purchase', 'DEVICECODE','WAAR', 'Locatie']].drop_duplicates()
-        #print userevents
-        if not userevents.empty: #user not in records
-            userevents['Start date'] = userevents.apply (lambda row: dateparse3(row['date_of_purchase'], row['time_of_purchase']), axis=1)
-            userevents =userevents[userevents['Start date'].apply(lambda x: x >=ti1 and x <=ti2)]
-            if not userevents.empty: #user not in records
-                userevents['End date'] =  userevents.apply(lambda row: row['Start date']+timedelta(seconds=300), axis=1)
-                userevents['type of outlet of purchase'] = userevents.apply(lambda row: row['WAAR'], axis=1)
-                userevents['LOCATIE'] = userevents.apply(lambda row: row['Locatie'], axis=1)
-                userevents = userevents[['VoterID','Start date','End date', 'DEVICECODE','type of outlet of purchase', 'LOCATIE']]
-                #userevents = userevents.groupby(['VoterID', 'Start date','End date', 'DEVICECODE', 'type of outlet of purchase', 'LOCATIE'])["purchased products "].sum()
-                #print (userevents)
-
-                out.append(userevents)
-                userlist.append(id)
-        #break
-
-    #ti1 = datetime.strptime("2016-10-25T12:00:00",'%Y-%m-%dT%H:%M:%S')
-    #ti2 =  datetime.strptime("2016-10-30T23:50:00",'%Y-%m-%dT%H:%M:%S')
-    #tr = tr[tr['startTime'].apply(lambda x: dateparse(x) >=ti1 and dateparse(x) <=ti2)]
-    #tr = list(tr.groupby('deviceId'))
-    print 'Number of users with records loaded: '+ str(len(out))
-    print userlist
-    return out
 
 """This function checks whether recorded event is between two consecutive framing trips based on  time"""
 def checkRecEvent(userplaces, mod1, sp1, pt1, pp1, pos, start, end, mod2, st2, pp2):
@@ -959,6 +644,151 @@ def constructRecordedEvents(trips,places,outletdata,recordedevents, overwrite = 
     print userswithresults
 
 
+def activityMap(user, places):
+    save=os.path.join(results,str(user)+"places.shp")
+    schema = {
+        'geometry': 'Point',
+        'properties': {'id': 'int', 'label':'str'},
+        }
+
+    # Write a new Shapefile
+    with fiona.open(save, 'w', 'ESRI Shapefile', schema) as c:
+        ## If there are multiple geometries, put the "for" loop here
+            for place in places.keys():
+                c.write({
+                    'geometry': mapping(transform(project,places[place]['geo'])),
+                    'properties': {'id': place, 'label':places[place]['label']},
+                    })
+    c.close
+
+
+
+def flexibleTripEvent(userplaces,mod1, st1, sp1, pt1, pp1, eventduration):
+    tripduration = ( pt1 - st1).total_seconds()
+    if sp1 in userplaces.keys() and pp1 in userplaces.keys(): #Places available in place set?
+            if  tripduration >= eventduration: #trip must at least last for eventduration + 1 minutes to enable food event
+                #category = (userplaces[pp1]['label']).split(':')[0]
+                #if category in foodOutletLabels:
+                    if mod1 != "":
+                        return True
+                    else:
+                        print 'modus 1 not available'
+                        return False
+                #else:
+                #    print 'place category not in foodlabels'
+                #    return False
+            else:
+                print 'beyond tripduration'
+                return False
+    else:
+        print 'place not in userplaces!'
+        return False
+
+def getTripInfo(row):
+    return row['modality'],dateparse(row['startTime']), cn(row['startPlaceId']), dateparse(row['stopTime']),cn(row['stopPlaceId'])
+
+def cn(n):
+    if str(n) != 'nan':
+        return str(int(n))
+    else:
+        return None
+
+
+
+#-------------------------------------------Simple methods for comparison
+
+def homeBuffer(user,userplaces, outletdata, mode, home=None):
+    #home = None
+    print "Home buffers are generated"
+    availabletime = 1800 #30 minutes from home buffer
+    if mode =='Bike':
+        print 'bike modeled by 3 times foot!'
+        availabletime  = ((availabletime)*3)  #In order to compensate for missing bike mode we use the pedestrian mode and give it 4  times more time
+
+    mode=convertMode(mode)          #This is needed because there are only car and predestrian modes available
+
+    newpath =os.path.join(results,user)
+    if not os.path.exists(newpath):
+        os.makedirs(newpath)
+    if home is None:
+        for p in userplaces.values():
+            if p['label']=='Home':
+                home = p['geo']
+                break
+    if home !=None:
+    #Travel based buffer
+        poly = transform(project, getisoline(home,availabletime, mode = mode)) #assuming the car default
+        simple_poly = transform(project,home).buffer(500) #Buffer of 500 m
+        sidx,ids, outlets, cat = outletdata[0],outletdata[1],outletdata[2],outletdata[3]
+        if poly.is_empty:
+            print "Prism empty! No buffer outlets selected"
+        else:
+            print 'simulated HORECA buffer'
+            candidates, candidateids, candidatecats = getPrismOutlets(poly, sidx,ids, outlets, cat)
+            saveOutlets([[candidateids[i],candidates[i],candidatecats[i]] for i,v in enumerate(candidates)], save=os.path.join(newpath,"bufferHORECA.shp"))
+            print 'simple H buffer'
+            candidates, candidateids, candidatecats = getPrismOutlets(simple_poly, sidx,ids, outlets, cat)
+            saveOutlets([[candidateids[i],candidates[i],candidatecats[i]] for i,v in enumerate(candidates)], save=os.path.join(newpath,"bufferHORECAsimple.shp"))
+                                     #Shop outlets
+            sidx,ids, outlets, cat = outletdata[4],outletdata[5],outletdata[6],outletdata[7]
+            print 'simulated SHOP buffer'
+            candidates, candidateids, candidatecats = getPrismOutlets(poly, sidx,ids, outlets, cat)
+            saveOutlets([[candidateids[i],candidates[i],candidatecats[i]] for i,v in enumerate(candidates)], save=os.path.join(newpath,"bufferSHOP.shp"))
+            print 'simple S buffer'
+            candidates, candidateids, candidatecats = getPrismOutlets(simple_poly, sidx,ids, outlets, cat)
+            saveOutlets([[candidateids[i],candidates[i],candidatecats[i]] for i,v in enumerate(candidates)], save=os.path.join(newpath,"bufferSHOPsimple.shp"))
+    else:
+        print "no home location for generating home buffer!"
+
+
+def activitySpace(user,userplaces,track, outletdata):
+     newpath =os.path.join(results,user)
+     if not os.path.exists(newpath):
+        os.makedirs(newpath)
+     lines = []
+     for index, row in track.iterrows():
+                mod, st, sp, pt, pp =  getTripInfo(row)
+                if sp in userplaces.keys() and pp in userplaces.keys():
+                    frompl =  userplaces[sp]
+                    topl = userplaces[pp]
+                    lines.append(LineString([transform(project,frompl['geo']), transform(project,topl['geo'])]))
+     #print lines #transform(project, transform(project,
+     multiline = MultiLineString(lines)
+     linestringbuffer = shape(multiline).buffer(100)
+     #print linestringbuffer
+     save = os.path.join(newpath,"aspace.shp" )
+     schema = {
+            'geometry': 'Polygon',
+            'properties': { 'user':'str'},
+            }
+
+        # Write a new Shapefile
+     with fiona.open(save, 'w', 'ESRI Shapefile', schema) as c:
+            ## If there are multiple geometries, put the "for" loop here
+                    c.write({
+                        'geometry': mapping(linestringbuffer),
+                        'properties': {'user':str(user)},
+                        })
+
+
+     c.close
+     sidx,ids, outlets, cat = outletdata[0],outletdata[1],outletdata[2],outletdata[3]
+     if linestringbuffer.is_empty:
+        print "Linestringbuffer empty! No outlets selected"
+     else:
+         print 'simulated HORECA aSpace'
+         candidates, candidateids, candidatecats = getPrismOutlets(linestringbuffer, sidx,ids, outlets, cat)
+         saveOutlets([[candidateids[i],candidates[i],candidatecats[i]] for i,v in enumerate(candidates)], save=os.path.join(newpath,"aSpaceHORECA.shp"))
+                                         #Shop outlets
+         sidx,ids, outlets,cat = outletdata[4],outletdata[5],outletdata[6],outletdata[7]
+         print 'simulated SHOP aSpace'
+         candidates, candidateids, candidatecats = getPrismOutlets(linestringbuffer, sidx,ids, outlets, cat)
+         saveOutlets([[candidateids[i],candidates[i],candidatecats[i]] for i,v in enumerate(candidates)], save=os.path.join(newpath,"aSpaceSHOP.shp"))
+
+
+
+
+#-------------------------------------------Statistics, maps and plots
 
 def summarystats():
     search = os.path.join(results,"*"+"Recevents.json")
@@ -1158,9 +988,6 @@ def savediagrams(dfs, folder, names, cls):
     barplot(sorted_cs, folder, names, cls)
         #
 
-
-
-
 def saveplaces(afodf, name='afo'):
     if afodf is not None:
         save = os.path.join(results,name+'pl.shp')
@@ -1215,13 +1042,6 @@ def barplot(dicts, folder, names, cls = 'H'):
                 r1 = r
             plt.bar(r, bars, width=barWidth, color = colors[index], label=name)
 
-    #print bars
-
-    # Set position of bar on X axis
-    #r1 = [1,4,7,10,13,16,19,22]
-    #r2 = [2,5,8,11,14,17,20,23]
-    #r3 = [3,6,9,12,15,18,21,24]
-
     # Make the plot
 
     # Add xticks on the middle of the group bars
@@ -1274,12 +1094,218 @@ def summarizeEvents(eventfile):
     #bars = [((float(dd[c])/total)*100 if c in dd.keys() else 0) for c in cats[0:max]]
 
 
+#---------------------------------------------IO methods
+
+def loadOutlets(outletdata= r"C:\Users\schei008\surfdrive\Temp\Locatus\outlets.shp", colx = 1, coly = 2):
+    workbook = r"C:\Users\schei008\surfdrive\Temp\Locatus\Levensmiddel_Horeca_311217.xlsx"
+    w = open_workbook(workbook)
+    sheet = w.sheet_by_index(0)
+    print 'Loading outlets!'
+    outletsH = []  #Horeca
+    idsH = []
+    catH = []
+    outletsF = []  #Food
+    idsF = []
+    catF = []
+    for rowidx in range(1,sheet.nrows):
+            x = float(sheet.cell(rowidx, sheet.ncols - colx).value)
+            y = float(sheet.cell(rowidx, sheet.ncols - coly).value)
+            p = transform(project, Point(x,y))
+            category = sheet.cell(rowidx, 19).value
+            if (category.split('-')[0]).split('.')[0]== '59':
+                outletsH.append(p)
+                idsH.append(sheet.cell(rowidx, 0).value)
+                catH.append(category)
+            else:
+                outletsF.append(p)
+                idsF.append(sheet.cell(rowidx, 0).value)
+                catF.append(category)
+##    schema = {
+##        'geometry': 'Point',
+##        'properties': {'id': 'int'},
+##    }
+    sidxH = generate_index(outletsH)  #, os.path.dirname(outletdata)
+    sidxF = generate_index(outletsF)
+    #points = geopandas.GeoDataFrame.from_file(outletdata)
+    return (sidxH,idsH, outletsH, catH, sidxF,idsF, outletsF, catF)
+
+##    # Write a new Shapefile
+##    with fiona.open(outletdata, 'w', 'ESRI Shapefile', schema) as c:
+##        ## If there are multiple geometries, put the "for" loop here
+##        for id, g in enumerate(outlets):
+##            c.write({
+##                'geometry': mapping(g),
+##                'properties': {'id': ids[id]},
+##                })
+
+
+#see https://blog.maptiks.com/spatial-queries-in-python/
+def generate_index(records, index_path=None):
+    prop = rtree.index.Property()
+    if index_path is not None:
+        prop.storage = rtree.index.RT_Disk
+        prop.overwrite = index_path
+
+    sp_index = rtree.index.Index(index_path, properties=prop)
+    for n,g in enumerate(records):
+        if g is not None:
+
+            sp_index.insert(int(n), (g.x,g.y,g.x,g.y))
+    return sp_index
+
+
+
+def getActivityLabels(csvfile):
+    ls = []
+    with open(csvfile, 'rb') as csvfile:
+        reader = csv.reader(csvfile, delimiter=',', quotechar='"')
+        for row in reader:
+         ls.append(row[2].split(':')[0])
+    return set(ls)
+
+   # set(['SHOP_GIFT', 'LANDUSE_CONIFEROUSDECIDUOUS', 'SHOP_SUPERMARKET', 'SHOP_HEARINGAIDS', 'POI_EMBASSY', 'TRANSPORT_SUBWAY', 'TOURIST_WINDMILL', 'SHOP_MOTORCYCLE', 'ACCOMMO_CHALET', 'FOOD_PUB', 'EDUCATION_COLLEGE', 'MONEY_EXCHANGE', 'SHOP_BICYCLE', 'SHOP_HAIRDRESSER', 'TOURIST_INFORMATION', 'POI_HAMLET', 'SHOP_TOYS', 'AMENITY_POSTOFFICE', 'SHOP_MUSIC', 'name', 'LANDUSE_ALLOTMENTS', 'TRANSPORT_TERMINAL', 'POI_CRANE', 'SHOP_GARDENCENTRE', 'TOURIST_BEACH', 'TOURIST_CASTLE2', 'FOOD_FASTFOOD', 'AMENITY_PUBLICBUILDING', 'SPORT_BASKETBALL', 'TRANSPORT_FUEL', 'ACCOMMO_CAMPING', 'SPORT_MOTORRACING', 'SHOP_LAUNDRETTE', 'SHOP_PET', 'SPORT_SWIMMING', 'POW_JEWISH', 'SHOP_GREENGROCER', 'SHOP_ALCOHOL', 'SHOP_NEWSPAPER', 'TOURIST_THEMEPARK', 'SPORT_TENNIS', 'AMENITY_PLAYGROUND', 'EDUCATION_NURSERY', 'POI_TOWERLOOKOUT', 'SHOP_COPYSHOP', 'Work', 'ACCOMMO_HOSTEL', 'TOURIST_MONUMENT', 'BARRIER_BLOCKS', 'SPORT_CLIMBING', 'SHOP_CAR', 'POI_TOWN', 'POW_BUDDHIST', 'SHOP_FLORIST', 'HEALTH_PHARMACY', 'SHOP_CONFECTIONERY', 'SHOP_FISH', 'SPORT_SOCCER', 'HEALTH_HOSPITAL', 'Home', 'TOURIST_CINEMA', 'POW_CHRISTIAN', 'SHOP_VENDINGMASCHINE', 'FOOD_CAFE', 'TOURIST_ATTRACTION', 'FOOD_BAR', 'TOURIST_MEMORIAL', 'WATER_TOWER', 'EDUCATION_SCHOOL', 'SHOP_BAKERY', 'TOURIST_FOUNTAIN', 'TOURIST_ART', 'TRANSPORT_STATION', 'SHOP_PHONE', 'MONEY_BANK', 'FOOD_ICECREAM', 'LANDUSE_QUARY', 'ACCOMMO_HOTEL', 'SHOP_COMPUTER', 'AMENITY_FIRESTATION', 'AMENITY_TOWNHALL', 'AMENITY_PRISON', 'TOURIST_ZOO', 'HEALTH_DOCTORS', 'AMENITY_LIBRARY', 'SHOP_BOOK', 'TOURIST_THEATRE', 'SPORT_GYM', 'SHOP_DIY', 'TRANSPORT_RENTALCAR', 'TRANSPORT_BUSSTOP', 'LANDUSE_MILITARY', 'SPORT_LEISURECENTER', 'TOURIST_ARCHAELOGICAL', 'TOURIST_NIGHTCLUB', 'SPORT_ICESKATING', 'Other', 'SHOP_TOBACCO', 'EDUCATION_UNIVERSITY', 'SPORT_BASEBALL', 'POW_ISLAMIC', 'TOURIST_CASTLE', 'SHOP_CONVENIENCE', 'SHOP_MARKETPLACE', 'SHOP_KIOSK', 'SHOP_CARREPAIR', 'SHOP_SHOES', 'AMENITY_POLICE', 'SHOP_CLOTHES', 'SHOP_BUTCHER', 'LANDUSE_GRASS', 'SPORT_SKIINGDOWNHILL', 'TOURIST_MUSEUM', 'POW_HINDU', 'SHOP_HIFI', 'HEALTH_DENTIST', 'FOOD_RESTAURANT', 'SPORT_STADIUM', 'POI_VILLAGE', 'SHOP_JEWELRY', 'SHOP_DEPARTMENTSTORE', 'TRANSPORT_TRAMSTOP', 'AMENITY_COURT', 'SPORT_SKATING'])
+
+foodOutletLabels = ['SHOP_GREENGROCER', 'SHOP_ALCOHOL' ,'SHOP_SUPERMARKET','FOOD_PUB', 'FOOD_FASTFOOD', 'SHOP_CONFECTIONERY', 'SHOP_FISH', 'FOOD_CAFE', 'FOOD_BAR', 'SHOP_BAKERY', 'FOOD_ICECREAM', 'SHOP_TOBACCO','SHOP_CONVENIENCE', 'SHOP_MARKETPLACE', 'SHOP_KIOSK' ,'SHOP_BUTCHER', 'FOOD_RESTAURANT']
+#Take the actual eventtime and assume all outlets can be visited within this time
+#modifierabletransportevents = [eventime <<< timewindow]
+
+def loadPlaces(places):
+    ls = {}
+    with open(places, 'rb') as csvfile:
+        reader = csv.reader(csvfile, delimiter=',', quotechar='"')
+        next(reader) #First line skipped
+        for row in reader:
+            user = row[1]
+            place = row[0]
+            if user not in  ls.keys():
+                ls[user]={place:{'label':row[2], 'geo': loads(row[4])}}
+
+            else:
+                ls[user][place] = {'label':row[2], 'geo': loads(row[4])}
+
+    csvfile.close
+    #print ls
+    return ls
+
+def dateparse (timestamp):
+        return pd.datetime.strptime(timestamp, '%Y-%m-%d %H:%M:%S.%f')
+def dateparse2 (timestamp):
+    if isinstance(timestamp,basestring):
+        return pd.datetime.strptime(timestamp, '%d-%m-%Y %H:%M')
+    else:
+        return timestamp
+def dateparse3 (date, time):
+    #'26-apr-18 12:35'
+    date = date.replace('mei', 'may')
+    return pd.datetime.strptime(date +' '+time, '%d-%b-%y %H:%M')
+
+
+def loadTrips(trips, usersample):
+    #headers = ['deviceId','modality','distance','startTime','stopTime','startCountry','startPc','startCity','startStreet','stopCountry','stopPc','stopCity','stopStreet','startPlaceId','stopPlaceId']
+    #dtypes = [str, str, int, datetime, datetime, str, str, str, str,str,str,str,str,int,int]
+
+    #dateCols = ['startTime','stopTime']
+    tr = pd.read_csv(trips, sep=',', parse_dates=True, date_parser=dateparse,  encoding="utf-8-sig")
+    #tr = pd.read_csv(trips)
+
+    #print tr.keys()
+    users= pd.read_csv(usersample, sep=';', parse_dates=True, date_parser=dateparse,  encoding="utf-8-sig")
+    #print users['include']
+    validids = users[users['include']==True]
+    #print validids.keys()
+    #print validids
+    out = {}
+
+    for index, row in validids.iterrows():
+        #print row
+        id = row['DeviceID']
+        ti1 = datetime.strptime(row[u'START DATE'],'%Y-%m-%d')
+        ti2 = datetime.strptime(row['END DATE ']+'T23:59:00','%Y-%m-%dT%H:%M:%S')
+        print 'user: ',id, ti1, ti2
+        usertrack =tr[tr['deviceId']== id ] #and
+        usertrack =usertrack[usertrack['startTime'].apply(lambda x: dateparse(x) >=ti1 and dateparse(x) <=ti2)]
+        out[str(int(id))]=usertrack
+        #break
+
+    #ti1 = datetime.strptime("2016-10-25T12:00:00",'%Y-%m-%dT%H:%M:%S')
+    #ti2 =  datetime.strptime("2016-10-30T23:50:00",'%Y-%m-%dT%H:%M:%S')
+    #tr = tr[tr['startTime'].apply(lambda x: dateparse(x) >=ti1 and dateparse(x) <=ti2)]
+    #tr = list(tr.groupby('deviceId'))
+    print 'number of users with trips: '+ str(len(out.keys()))
+    print out.keys()
+    return out
+
+
+def loadRecords(recordedevents, usersample):
+    ev = pd.read_csv(recordedevents, sep=';', parse_dates=True, date_parser=dateparse,  encoding="utf-8-sig")
+
+        #print tr.keys()
+    users= pd.read_csv(usersample, sep=';', parse_dates=True, date_parser=dateparse,  encoding="utf-8-sig")
+    #print users['include']
+    validids = users[users['include']==True]
+    #print validids.keys()
+    #print validids
+    out = []
+    userlist = []
+
+    for index, row in validids.iterrows():
+        #print row
+        id = row['DeviceID']
+        ti1 = datetime.strptime(row[u'START DATE'],'%Y-%m-%d')
+        ti2 = datetime.strptime(row['END DATE ']+'T23:59:00','%Y-%m-%dT%H:%M:%S')
+        #print 'user: ',id, ti1, ti2
+        userevents =ev[ev['DEVICECODE']== id ] #and
+        #userevents =userevents[userevents['Start date'].apply(lambda x: dateparse2(x) >=ti1 and dateparse2(x) <=ti2)]
+        #userevents = userevents[['VoterID','Start date','End date', 'DEVICECODE','type of outlet of purchase', 'LOCATIE']].drop_duplicates()
+        userevents = userevents[['VoterID','date_of_purchase', 'time_of_purchase', 'DEVICECODE','WAAR', 'Locatie']].drop_duplicates()
+        #print userevents
+        if not userevents.empty: #user not in records
+            userevents['Start date'] = userevents.apply (lambda row: dateparse3(row['date_of_purchase'], row['time_of_purchase']), axis=1)
+            userevents =userevents[userevents['Start date'].apply(lambda x: x >=ti1 and x <=ti2)]
+            if not userevents.empty: #user not in records
+                userevents['End date'] =  userevents.apply(lambda row: row['Start date']+timedelta(seconds=300), axis=1)
+                userevents['type of outlet of purchase'] = userevents.apply(lambda row: row['WAAR'], axis=1)
+                userevents['LOCATIE'] = userevents.apply(lambda row: row['Locatie'], axis=1)
+                userevents = userevents[['VoterID','Start date','End date', 'DEVICECODE','type of outlet of purchase', 'LOCATIE']]
+                #userevents = userevents.groupby(['VoterID', 'Start date','End date', 'DEVICECODE', 'type of outlet of purchase', 'LOCATIE'])["purchased products "].sum()
+                #print (userevents)
+
+                out.append(userevents)
+                userlist.append(id)
+        #break
+
+    #ti1 = datetime.strptime("2016-10-25T12:00:00",'%Y-%m-%dT%H:%M:%S')
+    #ti2 =  datetime.strptime("2016-10-30T23:50:00",'%Y-%m-%dT%H:%M:%S')
+    #tr = tr[tr['startTime'].apply(lambda x: dateparse(x) >=ti1 and dateparse(x) <=ti2)]
+    #tr = list(tr.groupby('deviceId'))
+    print 'Number of users with records loaded: '+ str(len(out))
+    print userlist
+    return out
+
+def addMissingHomes(outletdata):
+    #places =r"C:\Users\schei008\Dropbox\Schriften\Exchange\GOF\foodtracker\places.csv"
+    missing  = r"C:\Users\schei008\Dropbox\Schriften\Exchange\GOF\foodtracker\homes_missing.csv"
+    with open(missing, 'rb') as csvfile:
+        reader = csv.reader(csvfile, delimiter=',', quotechar='"')
+        for row in reader:
+            user = row[0]
+            home = loads(row[2])
+            homeBuffer(user,None, outletdata, 'Bike', home=home)
+    csvfile.close
+
+
+
+
+
+
+
+
 
 
 results = r"C:\Users\schei008\surfdrive\Temp\FoodResults"
 def main():
       #print  getActivityLabels(r"C:\Users\schei008\Dropbox\Schriften\Exchange\GOF\foodtracker\places.csv")
-##    outletdata = loadOutlets()
+    #outletdata = loadOutlets()
 ##    places =r"C:\Users\schei008\Dropbox\Schriften\Exchange\GOF\foodtracker\places.csv"
 ##    trips = r"C:\Users\schei008\Dropbox\Schriften\Exchange\GOF\foodtracker\trips.csv"
 ##    usersample =r"C:\Users\schei008\Dropbox\Schriften\Exchange\GOF\foodtracker\Simon_start_stop_date_per_device_ID_cleaned.csv"
@@ -1292,8 +1318,12 @@ def main():
 ##    ##constructEvents(tr,pl,outletdata,tripeventsOn=True)
 ##    constructRecordedEvents(tr,pl,outletdata,ev)
 
-    #summarystats()
-    summarizeEvents(os.path.join(results,'evstats.csv'))
+    #addMissingHomes(outletdata)
+    summarystats()
+    #summarizeEvents(os.path.join(results,'evstats.csv'))
+
+
+
 
 
 
