@@ -790,7 +790,7 @@ def activitySpace(user,userplaces,track, outletdata):
 
 #-------------------------------------------Statistics, maps and plots
 
-def summarystats():
+def summarystats(simplebuffer=False):
     search = os.path.join(results,"*"+"Recevents.json")
     files = glob.glob(search)
     allafoS = []
@@ -816,8 +816,9 @@ def summarystats():
         afoH = [] # list of event frames for horeca
         aspaceshop = os.path.join(withinuserfiles, 'aSpaceSHOP.csv')
         aspacehoreca = os.path.join(withinuserfiles, 'aSpaceHORECA.csv')
-        buffershop = os.path.join(withinuserfiles, 'bufferSHOP.csv')
-        bufferhoreca = os.path.join(withinuserfiles, 'bufferHORECA.csv')
+        s = ('simple' if  simplebuffer else '')
+        buffershop = os.path.join(withinuserfiles, 'bufferSHOP'+s+'.csv')
+        bufferhoreca = os.path.join(withinuserfiles, 'bufferHORECA'+s+'.csv')
         aspaceshopl = csvfilelength(aspaceshop)
         aspacehorecal = csvfilelength(aspacehoreca)
         buffershopl = csvfilelength(buffershop)
@@ -877,8 +878,8 @@ def summarystats():
             H.append(aspaceH)
             Hnames.append('aspaceH')
             #savediagrams(aspaceH, withinuserfiles, 'aspaceH')
-        #savediagrams(H, withinuserfiles, Hnames,'H')
-        #savediagrams(S, withinuserfiles, Snames, 'S')
+        savediagrams(H, withinuserfiles, Hnames,'H')
+        savediagrams(S, withinuserfiles, Snames, 'S')
         df = df.append({ 'user': user.encode('utf-8'), 'evdetected' : noevents, 'evrecorded': norecorded,
         'aspaceH': aspacehorecal, 'aspaceS': aspaceshopl, 'bufferH':bufferhorecal, 'bufferS': buffershopl, 'afoH': (len(afoH) if afoH is not None else 0), 'afoS': (len(afoS) if afoS is not None else 0),
         'bufferaspaceSJacc': (0 if (buffershopl ==0 or aspaceshopl ==0) else jaccard(readLocatusIds(aspaceshop),readLocatusIds(buffershop))),
@@ -983,8 +984,8 @@ def savediagrams(dfs, folder, names, cls):
             print folder+"/"+name
             print len(wordlist)
             sorted_cs.append(sorted_c)
-            #wc = wordcloud(c)
-            #wc.save(savewc)
+            wc = wordcloud(c)
+            wc.save(savewc)
     barplot(sorted_cs, folder, names, cls)
         #
 
@@ -1025,7 +1026,7 @@ def barplot(dicts, folder, names, cls = 'H'):
         cats = [i[0] for i in dict1]
     for index,name in enumerate(names):
          d = dicts[index]
-         print name
+         name = name.replace('afo', 'stp')
          print cats
          print d
          dd =  { i:j for i,j in d }
@@ -1319,6 +1320,7 @@ def main():
 ##    constructRecordedEvents(tr,pl,outletdata,ev)
 
     #addMissingHomes(outletdata)
+    #summarystats(simplebuffer = True)
     summarystats()
     #summarizeEvents(os.path.join(results,'evstats.csv'))
 
